@@ -208,14 +208,6 @@ function clearSelectionAndExit() {
     isMultiSelectMode.value = false;
 }
 
-// 切换多选模式
-function toggleMultiSelectMode() {
-    isMultiSelectMode.value = !isMultiSelectMode.value;
-    if (!isMultiSelectMode.value) {
-        selectedFiles.value.clear();
-    }
-}
-
 function getPreferredInsertStartTime() {
     if (props.materialType !== 'image' && props.thingType !== 'image') {
         return cursorTime.value;
@@ -306,13 +298,9 @@ function getPreviewShapeClass(file: WebCutMaterial) {
 </script>
 
 <template>
-    <div class="webcut-material-list">
-        <!-- 多选模式提示 -->
-        <div class="webcut-multiselect-info" v-if="props.enableMultipleSelect && fileList.length">
-            <span class="webcut-multiselect-link" @click="toggleMultiSelectMode" v-if="!isMultiSelectMode">
-                {{ t('多选') }}
-            </span>
-            <span v-if="isMultiSelectMode" style="margin-right: auto;">{{ t('已选{size}个', { size: selectedFiles.size }) }}</span>
+    <div class="webcut-material-browser">
+        <div class="webcut-multiselect-info" v-if="props.enableMultipleSelect && fileList.length && isMultiSelectMode">
+            <span style="margin-right: auto;">{{ t('已选{size}个', { size: selectedFiles.size }) }}</span>
             <n-button size="tiny" @click="handleBatchAdd" type="primary" :disabled="selectedFiles.size === 0" v-if="isMultiSelectMode">
                 {{ t('按顺序添加') }}
             </n-button>
@@ -321,58 +309,55 @@ function getPreviewShapeClass(file: WebCutMaterial) {
             </n-button>
         </div>
 
-        <div
-            v-for="file in fileList"
-            :key="file.id"
-            class="webcut-material-item"
-            :class="{ 'webcut-material-selected': selectedFiles.has(file.id) }"
-            @contextmenu.stop="handleContextMenu($event, file)"
-            @mouseleave="emit('leaveItem', file)"
-            @mouseenter="emit('enterItem', file)"
-            @click="handleFileClick(file, $event)"
-        >
-            <div class="webcut-material-preview" :class="getPreviewShapeClass(file)" :ref="(el) => setPreviewRef(file.id, el as Element | null)">
-                <!-- 新素材标识 -->
-                <n-tag type="error" :bordered="false" size="tiny" round :color="{ color: '#f55', textColor: 'white' }" class="webcut-material-badge" v-if="file.time + 5000 > Date.now()"><small>{{ t('新') }}</small></n-tag>
+        <div class="webcut-material-list">
+            <slot name="prepend"></slot>
 
-                <!-- 多选模式下的复选框或选中顺序标识 -->
-                <div v-if="isMultiSelectMode && props.enableMultipleSelect" class="webcut-checkbox-container" @click.stop="toggleFileSelection(file, $event)">
-                    <!-- 未选中时显示圆形复选框 -->
-                    <div
-                        v-if="!selectedFiles.has(file.id)"
-                        class="webcut-checkbox-round"
-                    ></div>
-                    <!-- 选中时显示选中顺序标识 -->
-                    <div
-                        v-else
-                        class="webcut-selection-order"
-                    >
-                        {{ selectedFiles.get(file.id) }}
+            <div
+                v-for="file in fileList"
+                :key="file.id"
+                class="webcut-material-item"
+                :class="{ 'webcut-material-selected': selectedFiles.has(file.id) }"
+                @contextmenu.stop="handleContextMenu($event, file)"
+                @mouseleave="emit('leaveItem', file)"
+                @mouseenter="emit('enterItem', file)"
+                @click="handleFileClick(file, $event)"
+            >
+                <div class="webcut-material-preview" :class="getPreviewShapeClass(file)" :ref="(el) => setPreviewRef(file.id, el as Element | null)">
+                    <n-tag type="error" :bordered="false" size="tiny" round :color="{ color: '#f55', textColor: 'white' }" class="webcut-material-badge" v-if="file.time + 5000 > Date.now()"><small>{{ t('新') }}</small></n-tag>
+
+                    <div v-if="isMultiSelectMode && props.enableMultipleSelect" class="webcut-checkbox-container" @click.stop="toggleFileSelection(file, $event)">
+                        <div
+                            v-if="!selectedFiles.has(file.id)"
+                            class="webcut-checkbox-round"
+                        ></div>
+                        <div
+                            v-else
+                            class="webcut-selection-order"
+                        >
+                            {{ selectedFiles.get(file.id) }}
+                        </div>
                     </div>
+
+                    <slot name="preview" :file="file"></slot>
+                    <slot :file="file"></slot>
+
+                    <n-button v-if="!isMultiSelectMode" class="webcut-add-button" size="tiny" type="primary" circle :focusable="false" @click.stop="handleAdd(file)">
+                        <template #icon>
+                            <n-icon>
+                                <Add />
+                            </n-icon>
+                        </template>
+                    </n-button>
                 </div>
-
-                <slot name="preview" :file="file"></slot>
-                <slot :file="file"></slot>
-
-                <!-- 添加按钮 -->
-                <n-button v-if="!isMultiSelectMode" class="webcut-add-button" size="tiny" type="primary" circle :focusable="false" @click.stop="handleAdd(file)">
-                    <template #icon>
-                        <n-icon>
-                            <Add />
-                        </n-icon>
-                    </template>
-                </n-button>
             </div>
-            <div class="webcut-material-title">
-                {{ file.name }}
+
+            <slot name="append"></slot>
+
+            <div v-if="fileList.length === 0 && !$slots.append && !$slots.prepend" class="webcut-empty-materials">
+                {{ t('暂无素材，请先导入素材') }}
             </div>
         </div>
 
-        <div v-if="fileList.length === 0" class="webcut-empty-materials">
-            {{ t('暂无素材，请先导入素材') }}
-        </div>
-
-        <!-- 右键菜单组件 -->
         <n-dropdown placement="bottom-start" trigger="manual" :x="x" :y="y" :options="options" :show="showDropdown"
             :on-clickoutside="onClickoutside" size="small" @select="handleSelect" />
     </div>

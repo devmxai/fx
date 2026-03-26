@@ -1651,7 +1651,7 @@ export function useWebCutThemeColors(provideColors?: () => Partial<WebCutColors>
         railHoverBgColor: 'rgba(125, 212, 187, 0.25)',
         railHoverBgColorDark: 'rgba(114, 251, 210, 0.2)',
         lineColor: '#eee',
-        lineColorDark: '#000',
+        lineColorDark: '#151515',
         thumbColor: '#eee',
         thumbColorDark: '#444',
         managerTopBarColor: '#f0f0f0',

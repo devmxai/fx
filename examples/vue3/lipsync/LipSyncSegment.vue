@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { WebCutRail, WebCutSegment } from 'webcut';
-import { useWebCutContext, useWebCutLocalFile } from 'webcut';
+import type { WebCutRail, WebCutSegment } from '../../../src/index';
+import { useWebCutContext, useWebCutLocalFile } from '../../../src/index';
 
 const props = defineProps<{
   segment: WebCutSegment;

@@ -7,7 +7,7 @@ import {
     NUploadDragger,
     NSpin,
 } from 'naive-ui';
-import { Upload } from '@vicons/carbon';
+import { Add, Upload } from '@vicons/carbon';
 import { useWebCutLibrary } from '../../../hooks/library';
 import { useT } from '../../../i18n/hooks';
 import { WebCutThingType } from '../../../types';
@@ -25,6 +25,7 @@ const props = defineProps<{
     accept: string;
     supportsDirectoryUpload?: boolean;
     compact?: boolean;
+    card?: boolean;
 }>();
 
 // 定义进度事件类型
@@ -258,7 +259,28 @@ async function importVideo(file: File) {
 
 <template>
     <div class="webcut-meterial-panel-upload">
-        <n-upload v-if="props.compact" multiple :show-file-list="false" :accept="props.accept" @change="handleFileChange"
+        <n-upload
+            v-if="props.card"
+            class="webcut-library-import-upload webcut-library-import-upload--card"
+            multiple
+            :show-file-list="false"
+            :accept="props.accept"
+            @change="handleFileChange"
+            :disabled="isTranscoding"
+        >
+            <div class="webcut-material-item webcut-material-item--import-card">
+                <div class="webcut-material-preview webcut-material-preview--import-card">
+                    <div class="webcut-library-import-card__content" v-if="!isTranscoding">
+                        <n-icon :component="Add" size="34" />
+                    </div>
+                    <div class="webcut-library-import-card__content" v-else>
+                        <n-spin size="small" />
+                    </div>
+                </div>
+            </div>
+        </n-upload>
+
+        <n-upload v-else-if="props.compact" multiple :show-file-list="false" :accept="props.accept" @change="handleFileChange"
             :disabled="isTranscoding">
             <n-button class="webcut-library-import-trigger" quaternary circle :disabled="isTranscoding" :focusable="false">
                 <template #icon>
@@ -283,7 +305,7 @@ async function importVideo(file: File) {
             </n-upload-dragger>
         </n-upload>
 
-        <div style="margin-top: 16px; text-align: center;" v-if="props.supportsDirectoryUpload && !props.compact">
+        <div style="margin-top: 16px; text-align: center;" v-if="props.supportsDirectoryUpload && !props.compact && !props.card">
             <n-button type="default" @click="handleImportFolder" :disabled="isTranscoding" text size="small">
                 <small>{{ t('导入文件夹') }}</small>
             </n-button>
@@ -293,4 +315,23 @@ async function importVideo(file: File) {
 
 <style scoped lang="less">
 @import "../../../styles/library.less";
+
+.webcut-meterial-panel-upload {
+    width: 100%;
+}
+
+.webcut-library-import-upload--card {
+    width: 100%;
+    display: block;
+}
+
+.webcut-library-import-upload--card :deep(.n-upload) {
+    width: 100%;
+    display: block;
+}
+
+.webcut-library-import-upload--card :deep(.n-upload-trigger) {
+    width: 100%;
+    display: block;
+}
 </style>

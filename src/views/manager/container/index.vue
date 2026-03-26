@@ -57,14 +57,20 @@ const moveState = ref<any>({});
 const dragState = ref<any>({});
 const highlightedRailId = ref<string | null>(null);
 
-watch(() => rails.value?.length, (next, prev) => {
-    if (next !== prev) {
-        showDragable.value = false;
-        dataList.value = [...(rails.value || [])].reverse();
-        nextTick(() => {
-            showDragable.value = true;
-        });
-    }
+function syncDataListFromRails() {
+    showDragable.value = false;
+    dataList.value = [...(rails.value || [])].reverse();
+    nextTick(() => {
+        showDragable.value = true;
+    });
+}
+
+watch(() => rails.value.map((rail) => {
+    const segments = rail.segments.map((segment) => `${segment.id}:${segment.start}:${segment.end}:${segment.sourceKey}`).join('|');
+    const transitions = (rail.transitions || []).map((transition) => `${transition.id}:${transition.start}:${transition.end}`).join('|');
+    return `${rail.id}:${rail.type}:${segments}:${transitions}`;
+}), () => {
+    syncDataListFromRails();
 }, { immediate: true });
 
 watch(() => dataList.value.length, updateManagerHeight);
@@ -611,7 +617,7 @@ manager.value = exposes;
 .webcut__manager__aside {
     width: var(--webcut-manager-aside-width);
     position: relative;
-    border-right: 1px solid var(--webcut-line-color);
+    border-right: 1px solid var(--webcut-ui-divider-color, var(--webcut-line-color));
     overflow: auto;
 }
 .webcut__manager__main {

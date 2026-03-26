@@ -1,23 +1,24 @@
 <script setup lang="ts">
-import { NSplit } from 'naive-ui';
+import { NSplit, NButton, NIcon } from 'naive-ui';
 import WebCutProvider from '../provider/index.vue';
 import WebCutPlayerScreen from '../player/screen.vue';
 import WebCutPlayerButton from '../player/button.vue';
 import WebCutManager from '../manager/index.vue';
 import { useWebCutContext, useWebCutPlayer, useWebCutThemeColors, useWebCutDarkMode } from '../../hooks';
-import ThemeSwitch from '../theme-switch/index.vue';
-import LangSwitch from '../lang-switch/index.vue';
 import WebCutSelectAspectRatio from '../select-aspect-ratio/index.vue';
 import WebCutTimeClock from '../time-clock/index.vue';
 import WebCutLibrary from '../library/index.vue';
 import Panel from '../panel/index.vue';
-import ExportButton from '../export-button/index.vue';
 import { WebCutColors, WebCutExtensionPack } from '../../types';
 import { useWebCutLocale } from '../../i18n/hooks';
 import WebCutToast from '../toast/index.vue';
 import AdvancedExport from '../../modules/advanced-export/index.vue';
 import WebCutTextEditPanel from '../panel/text/contenteditable.vue';
 import { ref, onMounted, onBeforeUnmount } from 'vue';
+import HistoryRecover from '../tools/history-recover/index.vue';
+import UndoTool from '../tools/undo/index.vue';
+import RedoTool from '../tools/redo/index.vue';
+import { Add, Subtract, FitToScreen, Export } from '@vicons/carbon';
 
 const initialViewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440;
 const isDesktopViewport = initialViewportWidth >= 1280;
@@ -49,6 +50,10 @@ const { status } = useWebCutContext();
 const manager = ref();
 function handleResized() {
     manager.value?.resizeHeight();
+}
+
+function handlePreviewUiOnlyAction() {
+    // UI-only placeholder for the first app bar pass.
 }
 
 function isEditableTarget(target: EventTarget | null) {
@@ -105,6 +110,56 @@ onBeforeUnmount(() => {
     <WebCutProvider>
         <slot name="header"></slot>
         <div class="webcut-editor">
+            <div class="webcut-editor-app-bar">
+                <div class="webcut-editor-app-bar__section webcut-editor-app-bar__section--left">
+                    <div class="webcut-editor-history-tools">
+                        <HistoryRecover />
+                        <UndoTool />
+                        <RedoTool />
+                    </div>
+                </div>
+
+                <div class="webcut-editor-app-bar__section webcut-editor-app-bar__section--center">
+                    <div class="webcut-editor-preview-controls">
+                        <n-button quaternary circle :focusable="false" @click="handlePreviewUiOnlyAction">
+                            <template #icon>
+                                <n-icon><Subtract /></n-icon>
+                            </template>
+                        </n-button>
+                        <button class="webcut-editor-preview-controls__label" type="button" @click="handlePreviewUiOnlyAction">100%</button>
+                        <n-button quaternary circle :focusable="false" @click="handlePreviewUiOnlyAction">
+                            <template #icon>
+                                <n-icon><Add /></n-icon>
+                            </template>
+                        </n-button>
+                        <button class="webcut-editor-preview-controls__pill" type="button" @click="handlePreviewUiOnlyAction">
+                            <n-icon size="14"><FitToScreen /></n-icon>
+                            <span>Fit</span>
+                        </button>
+                        <button class="webcut-editor-preview-controls__pill" type="button" @click="handlePreviewUiOnlyAction">100%</button>
+                    </div>
+                </div>
+
+                <div class="webcut-editor-app-bar__section webcut-editor-app-bar__section--right" v-if="!props.disableTopRightBar">
+                    <AdvancedExport>
+                        <template #trigger="{ open }">
+                            <n-button
+                                quaternary
+                                circle
+                                class="webcut-editor-app-bar__icon-button"
+                                :focusable="false"
+                                @click="open"
+                            >
+                                <template #icon>
+                                    <n-icon size="16">
+                                        <Export />
+                                    </n-icon>
+                                </template>
+                            </n-button>
+                        </template>
+                    </AdvancedExport>
+                </div>
+            </div>
             <n-split
                 direction="vertical"
                 :default-size="editorTopPaneDefaultSize"
@@ -139,13 +194,6 @@ onBeforeUnmount(() => {
                                 </template>
                                 <template #2>
                                     <div class="webcut-editor-right-side">
-                                        <div class="webcut-editor-right-side-top-bar" v-if="!props.disableTopRightBar">
-                                            <ThemeSwitch></ThemeSwitch>
-                                            <span style="margin: auto;"></span>
-                                            <LangSwitch></LangSwitch>
-                                            <ExportButton></ExportButton>
-                                            <AdvancedExport></AdvancedExport>
-                                        </div>
                                         <div class="webcut-editor-right-side-main">
                                             <Panel></Panel>
                                         </div>
@@ -181,6 +229,125 @@ onBeforeUnmount(() => {
     position: relative;
     height: 100%;
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    --webcut-ui-divider-color: color-mix(in srgb, var(--webcut-line-color) 94%, var(--webcut-background-color) 6%);
+}
+.webcut-editor :deep(.n-split) {
+    min-height: 0;
+}
+.webcut-editor-app-bar {
+    min-height: 40px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding: 4px 10px;
+    border-bottom: 1px solid var(--webcut-ui-divider-color);
+    background: var(--webcut-background-color);
+}
+.webcut-editor-app-bar__section {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+.webcut-editor-app-bar__section--left {
+    justify-content: flex-start;
+}
+.webcut-editor-app-bar__section--center {
+    justify-content: center;
+}
+.webcut-editor-app-bar__section--right {
+    justify-content: flex-end;
+}
+.webcut-editor-history-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.webcut-editor-history-tools :deep(.webcut-tool-button),
+.webcut-editor-app-bar__icon-button {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    padding: 0;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--webcut-line-color) 58%, var(--webcut-background-color) 42%);
+    background: color-mix(in srgb, var(--webcut-thumb-color) 14%, var(--webcut-background-color) 86%);
+    color: color-mix(in srgb, var(--text-color-base) 74%, var(--webcut-background-color) 26%);
+    box-shadow: none;
+}
+.webcut-editor-history-tools :deep(.webcut-tool-button:hover),
+.webcut-editor-app-bar__icon-button:hover {
+    border-color: color-mix(in srgb, var(--webcut-primary-color) 28%, var(--webcut-line-color) 72%);
+}
+.webcut-editor-history-tools :deep(.webcut-tool-button .n-icon),
+.webcut-editor-history-tools :deep(.webcut-tool-button .n-button__icon),
+.webcut-editor-history-tools :deep(.webcut-tool-button .n-button__content),
+.webcut-editor-app-bar__icon-button :deep(.n-icon),
+.webcut-editor-app-bar__icon-button :deep(.n-button__icon),
+.webcut-editor-app-bar__icon-button :deep(.n-button__content) {
+    color: color-mix(in srgb, var(--text-color-base) 74%, var(--webcut-background-color) 26%);
+}
+.webcut-editor-history-tools :deep(.webcut-tool-button .n-icon) {
+    font-size: 18px !important;
+}
+.webcut-editor-history-tools :deep(.webcut-tool-button:disabled),
+.webcut-editor-app-bar__icon-button:disabled {
+    opacity: .55;
+}
+.webcut-editor-preview-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+.webcut-editor-preview-controls :deep(.n-button),
+.webcut-editor-preview-controls__label,
+.webcut-editor-preview-controls__pill {
+    height: 38px;
+    min-height: 38px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--webcut-line-color) 58%, var(--webcut-background-color) 42%);
+    background: color-mix(in srgb, var(--webcut-thumb-color) 14%, var(--webcut-background-color) 86%);
+    color: color-mix(in srgb, var(--text-color-base) 74%, var(--webcut-background-color) 26%);
+    box-shadow: none;
+}
+.webcut-editor-preview-controls :deep(.n-button) {
+    width: 38px;
+    min-width: 38px;
+    padding: 0;
+}
+.webcut-editor-preview-controls :deep(.n-button:hover),
+.webcut-editor-preview-controls__label:hover,
+.webcut-editor-preview-controls__pill:hover {
+    border-color: color-mix(in srgb, var(--webcut-primary-color) 28%, var(--webcut-line-color) 72%);
+}
+.webcut-editor-preview-controls :deep(.n-button .n-icon),
+.webcut-editor-preview-controls :deep(.n-button .n-button__icon),
+.webcut-editor-preview-controls :deep(.n-button .n-button__content) {
+    color: color-mix(in srgb, var(--text-color-base) 74%, var(--webcut-background-color) 26%);
+}
+.webcut-editor-preview-controls__label,
+.webcut-editor-preview-controls__pill {
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+.webcut-editor-preview-controls__label {
+    min-width: 74px;
+    padding: 6px 12px;
+}
+.webcut-editor-preview-controls__pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 84px;
+    justify-content: center;
+    padding: 6px 14px;
 }
 .webcut-editor-split-resize-trigger--horizontal {
     width: 100%;
@@ -195,14 +362,14 @@ onBeforeUnmount(() => {
     top: 50%;
     left: 0;
     width: 100%;
-    height: 2px;
+    height: 1px;
     transform: translateY(-50%);
-    background-color: var(--webcut-line-color);
+    background-color: var(--webcut-ui-divider-color);
 }
 .webcut-editor-split-resize-trigger--vertical {
     height: 100%;
-    width: 2px;
-    background-color: var(--webcut-line-color);
+    width: 1px;
+    background-color: var(--webcut-ui-divider-color);
 }
 .webcut-editor-video-player-container {
     height: calc(100% - 56px);
@@ -245,15 +412,6 @@ onBeforeUnmount(() => {
     display: flex;
     flex-direction: column;
 }
-.webcut-editor-right-side-top-bar {
-    display: flex;
-    flex-direction: row;
-    gap: 8px;
-    align-items: center;
-    justify-content: space-between;
-    padding: 4px;
-    border-bottom: 1px solid var(--webcut-line-color);
-}
 .webcut-editor-right-side-main {
     flex: 1;
     overflow: auto;
@@ -264,5 +422,25 @@ onBeforeUnmount(() => {
 .webcut-editor-left-side {
     height: 100%;
     overflow: hidden;
+    box-sizing: border-box;
+    border-right: 1px solid var(--webcut-ui-divider-color);
+}
+
+@media (max-width: 980px) {
+    .webcut-editor-app-bar {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .webcut-editor-app-bar__section--left,
+    .webcut-editor-app-bar__section--center,
+    .webcut-editor-app-bar__section--right {
+        justify-content: center;
+    }
+
+    .webcut-editor-preview-controls {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
 }
 </style>

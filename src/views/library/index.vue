@@ -116,10 +116,8 @@ function handleTabChange(key: string) {
   padding: 10px 8px;
   overflow-y: auto;
   box-sizing: border-box;
-  border-right: 1px solid var(--webcut-line-color);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--webcut-thumb-color) 72%, transparent), transparent 28%),
-    var(--webcut-background-color);
+  border-right: 1px solid var(--webcut-ui-divider-color, var(--webcut-line-color));
+  background: var(--webcut-background-color);
 }
 
 .webcut-library-panel {
@@ -131,41 +129,77 @@ function handleTabChange(key: string) {
 }
 
 .webcut-library-tab {
-  border: 1px solid transparent;
-  border-radius: 14px;
-  background: transparent;
-  color: var(--text-color-base);
-  padding: 10px 6px;
+  width: 100%;
+  min-height: 72px;
+  border: 1px solid color-mix(in srgb, var(--webcut-line-color) 48%, var(--webcut-background-color) 52%);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--webcut-thumb-color) 12%, var(--webcut-background-color) 88%);
+  color: color-mix(in srgb, var(--text-color-base) 66%, var(--webcut-background-color) 34%);
+  padding: 8px 4px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  transition: background-color .2s ease, border-color .2s ease, color .2s ease, transform .2s ease;
+  gap: 5px;
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease;
 
   span {
-    font-size: var(--webcut-font-size-tiny);
+    font-size: 11px;
     line-height: 1.15;
     text-align: center;
     word-break: break-word;
+    font-weight: 600;
   }
 
   :deep(.n-icon) {
-    font-size: var(--webcut-font-size-large);
+    font-size: 22px;
+    color: inherit;
   }
 }
 
 .webcut-library-tab:hover {
-  background-color: color-mix(in srgb, var(--webcut-rail-hover-bg-color) 70%, transparent);
+  background-color: color-mix(in srgb, var(--webcut-thumb-color) 18%, var(--webcut-background-color) 82%);
+  border-color: color-mix(in srgb, var(--webcut-line-color) 54%, var(--webcut-background-color) 46%);
 }
 
 .webcut-library-tab--active {
-  color: var(--webcut-primary-color);
-  border-color: color-mix(in srgb, var(--webcut-primary-color) 22%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--webcut-primary-color) 13%, transparent), transparent),
-    color-mix(in srgb, var(--webcut-rail-hover-bg-color) 92%, transparent);
-  transform: translateX(2px);
+  color: color-mix(in srgb, white 90%, var(--webcut-background-color) 10%);
+  border-color: color-mix(in srgb, var(--webcut-line-color) 50%, var(--webcut-background-color) 50%);
+  background: color-mix(in srgb, var(--webcut-thumb-color) 22%, var(--webcut-background-color) 78%);
+}
+
+@media (max-width: 900px) {
+  .webcut-library-rail {
+    width: 72px;
+    padding: 8px 7px;
+  }
+
+  .webcut-library-tab {
+    min-height: 68px;
+    border-radius: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .webcut-library-rail {
+    width: 64px;
+    gap: 5px;
+    padding: 8px 6px;
+  }
+
+  .webcut-library-tab {
+    min-height: 62px;
+    border-radius: 15px;
+    padding: 8px 3px;
+
+    span {
+      font-size: 10px;
+    }
+
+    :deep(.n-icon) {
+      font-size: 20px;
+    }
+  }
 }
 </style>

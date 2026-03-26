@@ -52,11 +52,12 @@ function stopAudio(file: any) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: color-mix(in srgb, var(--webcut-thumb-color) 55%, transparent);
   cursor: default;
 }
 
 .webcut-audio-icon {
-  font-size: 2em;
+  font-size: 1.8em;
+  opacity: 0.88;
 }
 </style>

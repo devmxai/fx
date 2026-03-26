@@ -8,7 +8,7 @@ import {
   useWebCutHistory,
   useWebCutLibrary,
   useWebCutPlayer,
-} from 'webcut';
+} from '../../../src/index';
 
 type MouthShape = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'X';
 type RhubarbRecognizer = 'phonetic' | 'pocketSphinx';

@@ -43,9 +43,10 @@ const projectFileList = computed(() => {
   return items;
 });
 
-const navKey = ref<string>('');
+const navKey = ref<string>('import');
 const selectedNav = ref<any>(null);
 const asideRef = ref();
+const hasExtraNavs = computed(() => Array.isArray(props.navs) && props.navs.length > 0);
 
 async function onFileChange(file: File) {
   await addNewFile(file);
@@ -75,7 +76,7 @@ function onResetNav() {
 
 <template>
   <div class="webcut-library-panel webcut-library-panel--stacked">
-    <div class="webcut-library-panel-toolbar">
+    <div class="webcut-library-panel-toolbar" v-if="hasExtraNavs || selectedNav?.component">
       <Aside
         v-model:current="navKey"
         v-model:selected="selectedNav"
@@ -98,7 +99,7 @@ function onResetNav() {
     </div>
 
     <main class="webcut-library-panel-main">
-      <scroll-box class="webcut-material-container" v-if="navKey === 'import'">
+      <scroll-box class="webcut-material-container webcut-material-container--grid-shell" v-if="navKey === 'import'">
         <List
           :files="projectFileList"
           :thingType="props.thingType"
@@ -108,6 +109,16 @@ function onResetNav() {
           @leaveItem="emit('leaveListItem', $event)"
           @enterItem="emit('enterListItem', $event)"
         >
+          <template #append>
+            <ImportBox
+              card
+              :thingType="props.thingType"
+              :accept="props.accept"
+              :supportsDirectoryUpload="props.supportsDirectoryUpload"
+              @fileImport="asideRef?.resetToFirstNav"
+              @dirImport="asideRef?.resetToFirstNav"
+            ></ImportBox>
+          </template>
           <template #preview="{ file }">
             <slot name="listItemPreview" :file="file"></slot>
           </template>

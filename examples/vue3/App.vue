@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { WebCutEditor } from 'webcut';
-import 'webcut/esm/style.css';
+import { WebCutEditor } from '../../src/index';
 import { RhubarbLipSyncPack } from './lipsync/RhubarbLipSyncPack';
 </script>
 

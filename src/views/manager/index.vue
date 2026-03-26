@@ -15,7 +15,7 @@ const { resizeManagerMaxHeight } = useWebCutManager();
 const root = ref();
 
 function resizeHeight() {
-    const height = root.value?.getBoundingClientRect().height - 28; // 28是工具栏的高度
+    const height = root.value?.getBoundingClientRect().height - 46; // 46是工具栏的高度
     resizeManagerMaxHeight(height);
     resize();
 }

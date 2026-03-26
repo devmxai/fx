@@ -1,8 +1,14 @@
+.webcut-material-browser {
+  min-height: 100%;
+  padding-top: 12px;
+  box-sizing: border-box;
+}
+
 .webcut-library-panel {
   display: flex;
   height: 100%;
-  margin: 0;
   background-color: var(--webcut-background-color);
+  margin: 0;
 }
 
 .webcut-library-panel--stacked {
@@ -12,10 +18,10 @@
 .webcut-library-panel-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px;
-  padding: 10px 12px 8px;
-  border-bottom: 1px solid var(--webcut-line-color);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--webcut-ui-divider-color, var(--webcut-line-color));
   background-color: var(--webcut-background-color);
 }
 
@@ -28,7 +34,7 @@
   min-width: 88px;
   flex-direction: column;
   padding: 10px 8px;
-  border-right: 1px solid var(--webcut-line-color);
+  border-right: 1px solid var(--webcut-ui-divider-color, var(--webcut-line-color));
 }
 
 .webcut-library-panel-aside--horizontal {
@@ -39,7 +45,7 @@
 }
 
 .webcut-library-panel-aside-btn {
-  background: color-mix(in srgb, var(--webcut-thumb-color) 62%, transparent);
+  background: color-mix(in srgb, var(--webcut-thumb-color) 52%, transparent);
   margin: 2px;
   border-radius: 10px;
   font-size: var(--webcut-font-size-tiny);
@@ -50,7 +56,7 @@
   color: var(--text-color-base);
 
   &--active {
-    background-color: color-mix(in srgb, var(--webcut-rail-hover-bg-color) 90%, transparent);
+    background-color: color-mix(in srgb, var(--webcut-thumb-color) 76%, transparent);
     border-color: color-mix(in srgb, var(--webcut-primary-color) 24%, transparent);
     color: var(--webcut-primary-color);
   }
@@ -62,6 +68,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .webcut-library-import-trigger {
@@ -74,15 +81,21 @@
 
 .webcut-material-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  padding: 12px;
+  padding: 0 12px 12px;
   box-sizing: border-box;
+  align-content: start;
 }
 
 .webcut-material-item {
   width: 100%;
   cursor: default;
+}
+
+.webcut-material-item--import-card {
+  cursor: pointer;
+  align-self: stretch;
 }
 
 .webcut-material-item:hover .webcut-material-preview {
@@ -99,37 +112,52 @@
 
 .webcut-material-preview {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 16 / 10;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: color-mix(in srgb, var(--webcut-thumb-color) 55%, transparent);
-  border-radius: 16px;
+  background-color: color-mix(in srgb, var(--webcut-thumb-color) 52%, transparent);
+  border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--border-color) 88%, transparent);
   overflow: hidden;
   position: relative;
   transition: box-shadow .2s ease, border-color .2s ease, transform .2s ease;
 }
 
-.webcut-material-preview--portrait {
-  aspect-ratio: 3 / 4;
+.webcut-material-preview--import-card {
+  aspect-ratio: 16 / 10;
+  border-radius: 14px;
+  border-color: color-mix(in srgb, var(--webcut-line-color) 58%, var(--webcut-background-color) 42%);
+  background-color: color-mix(in srgb, var(--webcut-thumb-color) 14%, var(--webcut-background-color) 86%);
+  color: color-mix(in srgb, white 86%, var(--webcut-background-color) 14%);
+  cursor: pointer;
 }
 
-.webcut-material-preview--square {
-  aspect-ratio: 1 / 1;
+.webcut-library-import-card__content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
-.webcut-material-preview--landscape {
-  aspect-ratio: 4 / 3;
+.webcut-material-item--import-card:hover .webcut-material-preview--import-card {
+  border-color: color-mix(in srgb, var(--webcut-line-color) 54%, var(--webcut-background-color) 46%);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--webcut-thumb-color) 18%, transparent);
 }
 
+.webcut-material-preview--portrait,
+.webcut-material-preview--square,
+.webcut-material-preview--landscape,
 .webcut-material-preview--wide {
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 16 / 10;
 }
 
 .webcut-material-preview :deep(.n-upload) {
   cursor: pointer;
   height: 100%;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -147,12 +175,7 @@
 }
 
 .webcut-material-title {
-  font-size: var(--webcut-font-size-tiny);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 8px;
-  padding: 0 2px;
+  display: none;
 }
 
 .webcut-add-button {
@@ -172,11 +195,21 @@
   padding: 20px 12px;
   font-size: var(--webcut-font-size-tiny);
   opacity: .6;
+  grid-column: 1 / -1;
 }
 
 .webcut-material-container {
   height: 100%;
   overflow: auto;
+  background-color: var(--webcut-background-color);
+}
+
+.webcut-material-container--grid-shell {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--webcut-background-color);
+  height: 100%;
 }
 
 .webcut-material-image,
@@ -206,12 +239,12 @@
 
 .webcut-multiselect-info {
   width: 100%;
-  padding: 8px 12px 0;
+  padding: 10px 12px 8px;
   background-color: transparent;
   border-radius: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
   font-size: var(--webcut-font-size-tiny);
 }
@@ -246,4 +279,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+@media (max-width: 1180px) {
+  .webcut-material-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .webcut-material-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 10px;
+  }
+}
+
+@media (max-width: 520px) {
+  .webcut-material-list {
+    grid-template-columns: 1fr;
+  }
 }

@@ -1,5 +1,5 @@
 import { defineComponent, h } from 'vue';
-import type { WebCutExtensionPack, WebCutRail } from 'webcut';
+import type { WebCutExtensionPack, WebCutRail } from '../../../src/index';
 import LipSyncLibrary from './LipSyncLibrary.vue';
 import LipSyncSegment from './LipSyncSegment.vue';
 

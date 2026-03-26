@@ -1,164 +1,182 @@
-<p align="center">
-  <img src="webcut.png" alt="WebCut Logo" width="160" />
-</p>
+# FX Project
 
-<h1 align="center">WebCut</h1>
-<p align="center">
-  <a href="https://www.npmjs.com/package/webcut">
-    <img src="https://img.shields.io/npm/v/webcut.svg?style=flat-square" alt="npm version" />
-  </a>
-  <a href="https://github.com/tangshuang/webcut/blob/main/LICENSE">
-    <img src="https://img.shields.io/npm/l/webcut.svg?style=flat-square" alt="license" />
-  </a>
-  <a href="https://github.com/tangshuang/webcut">
-    <img src="https://img.shields.io/github/stars/tangshuang/webcut.svg?style=flat-square" alt="GitHub stars" />
-  </a>
-</p>
+`FX Project` is a customized editing build based on `WebCut`, focused on a cleaner professional UI, better desktop/tablet readiness, and a simpler creator workflow for media import, timeline editing, and lip-sync composition.
 
-<p align="center">A powerful web video editing UI framework, empowering web applications to quickly integrate professional-grade video editing capabilities.</p>
+This repository is the active baseline for the current edition. It replaces the earlier broken local copy and is the version that should be used for ongoing work.
 
-## 📋 Table of Contents
+## Current Focus
 
-- [Project Introduction](#project-introduction)
-- [Design Philosophy](#design-philosophy)
-- [Core Features](#core-features)
-- [Quick Examples](#quick-examples)
-- [Installation](#installation)
-- [Documentation](#documentation)
-- [License](#license)
-- [Acknowledgements](#acknowledgements)
+This edition is being rebuilt in small, controlled UI passes so the product can evolve safely without breaking the source structure.
 
-## Project Introduction
+Current direction:
 
-WebCut is a video editing UI framework specifically designed for web applications. It provides intuitive canvas interface and comprehensive timeline tools, enabling developers to easily perform video editing, text/graphic overlay, element layout and transformation operations in the browser, and integrate them into their applications in a modular way.
+- Desktop-first polish
+- Tablet-friendly interaction
+- Mobile-ready layout foundation
+- Minimal logic disruption while improving the editing experience
 
-<p align="center">
-  🚀 Quick Integration · 🎨 Rich Features · 📱 Responsive Design · ⚡ High Performance Experience
-</p>
+## What Has Been Built
 
-## Design Philosophy
+### 1. Editor Shell Refresh
 
-WebCut's core philosophy is "Complex Capabilities, Simple Usage". We believe that implementing professional-grade video editing on the web platform should not be a burden. Through componentized architecture and responsive APIs, developers can focus on creativity itself, rather than underlying details.
+The main editor UI was redesigned to feel more like a modern editing tool:
 
-### Our Design Principles
+- New top `App Bar`
+- `Restore / Undo / Redo` moved to the top-left
+- Preview zoom controls moved to the top-center as UI controls
+- `Export` moved to the top-right
+- Cleaner panel separation and darker, more unified visual rhythm
 
-| Principle | Description |
-|-----------|-------------|
-| 🎯 **User-First Design** | Intuitive interfaces and clear documentation, reducing learning costs |
-| ⚡ **Performance Optimization** | Optimized for browser environments to ensure smooth operation |
-| 🔧 **Extensibility** | Modular design for easy customization and feature extension |
-| 🛡️ **Type Safety** | Comprehensive TypeScript support to reduce development errors
+Primary file:
 
-## Core Features
+- `/Users/mx/Documents/New project/FX Project/src/views/editor/index.vue`
 
-### Editing and Creation
+### 2. Left Media Rail + Import Panel
 
-| Feature | Description |
-|---------|-------------|
-| 🎨 **Canvas Editing** | Intuitive canvas-based editing interface, what you see is what you get |
-| 🎬 **Player Control** | Play/pause, progress and volume control, supporting frame-level precise operations |
-| 📝 **Text Overlay** | Multi-style text addition and customization, supporting rich text effects |
-| ⏱️ **Timeline** | Precise timeline control, supporting scaling, positioning and clip management |
-| 🎛️ **Element Transformation** | Intuitive scaling, rotation and position adjustment, supporting precise value input |
+The old library area was reshaped into a more structured two-part layout:
 
-### Auxiliary Tools
+- Vertical tool rail for `Video`, `Audio`, `Image`, `Text`, `Transition`, and `Lip Sync`
+- Dedicated adjacent import/material panel
+- Card-based media browser
+- Import card integrated inside the same grid
+- Cleaner media cards with reduced label noise
 
-| Feature | Description |
-|---------|-------------|
-| 📏 **Size Measurement** | Accurate text, video and image size calculation and control |
-| 🧰 **Utility Functions** | Export Blob, text-to-image conversion and other practical features |
-| 📱 **Responsive Design** | Adapt to different screen sizes, providing consistent editing experience |
+Primary files:
 
-### Project Showcase
+- `/Users/mx/Documents/New project/FX Project/src/views/library/index.vue`
+- `/Users/mx/Documents/New project/FX Project/src/styles/library.less`
+- `/Users/mx/Documents/New project/FX Project/src/views/library/_shared/container.vue`
+- `/Users/mx/Documents/New project/FX Project/src/views/library/_shared/import.vue`
+- `/Users/mx/Documents/New project/FX Project/src/views/library/_shared/list.vue`
 
-> *Project screenshots or demo videos can be placed here*
+### 3. Timeline Toolbar Cleanup
 
-## Quick Examples
+The toolbar above the timeline was cleaned up and simplified:
 
-### Integration in Vue Project
+- Timeline history actions removed from the lower bar after moving them to the app bar
+- Editing tools reordered from the left
+- Empty left gutter removed
+- Toolbar spacing and border alignment improved
+- Timeline tool buttons restyled closer to the main app controls
 
-The following example shows how to quickly integrate WebCut in a Vue project:
+Primary files:
 
-```vue
-<script setup lang="ts">
-// Import core components and styles
-import { WebCutEditor } from 'webcut';
-import 'webcut/esm/style.css';
+- `/Users/mx/Documents/New project/FX Project/src/views/manager/tool-bar/index.vue`
+- `/Users/mx/Documents/New project/FX Project/src/views/manager/index.vue`
 
-// Project ID (example)
-const yourProjectId = 'example-project';
-</script>
+### 4. Visual System Polish
 
-<template>
-  <div class="editor-container">
-    <h1>Video Editor</h1>
-    <!-- Use the complete editor component directly -->
-    <WebCutEditor :project-id="yourProjectId" />
-  </div>
-</template>
+A broader UI cleanup was applied to make the product feel more coherent:
 
-<style scoped>
-.editor-container {
-  width: 100%;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-</style>
-```
+- Borders unified to a single stroke weight
+- Divider color darkened and normalized across major panels
+- Control buttons restyled into one visual language
+- Import cards and tabs visually aligned with the rest of the editor
 
-> **Tip**: The above code will render a complete video editing interface, including video canvas, toolbar and timeline. You can also import components and tools from `webcut` as needed for customization.
+Primary files:
 
-## Installation
+- `/Users/mx/Documents/New project/FX Project/src/hooks/index.ts`
+- `/Users/mx/Documents/New project/FX Project/src/views/editor/index.vue`
+- `/Users/mx/Documents/New project/FX Project/src/views/library/index.vue`
+- `/Users/mx/Documents/New project/FX Project/src/styles/library.less`
+- `/Users/mx/Documents/New project/FX Project/src/views/manager/container/index.vue`
 
-WebCut supports installation via multiple package managers:
+### 5. Timeline Refresh / Undo Fix
+
+An important timeline rendering bug was fixed in this edition:
+
+- After `Split`, using `Undo` could leave stale segment visuals in the timeline
+- The root cause was incomplete timeline refresh logic when segment structure changed inside the same rail
+- The manager now rebuilds its visual data from rail signatures instead of only watching rail count
+
+Primary file:
+
+- `/Users/mx/Documents/New project/FX Project/src/views/manager/container/index.vue`
+
+### 6. Lip Sync Example Workflow
+
+The example app includes a simplified lip-sync workflow built around Rhubarb:
+
+- Simplified lip-sync panel
+- Image-based mouth-shape workflow
+- Example template/preset support in the example app
+- Example pack wiring in the Vue demo
+
+Primary files:
+
+- `/Users/mx/Documents/New project/FX Project/examples/vue3/lipsync/LipSyncLibrary.vue`
+- `/Users/mx/Documents/New project/FX Project/examples/vue3/lipsync/LipSyncSegment.vue`
+- `/Users/mx/Documents/New project/FX Project/examples/vue3/lipsync/RhubarbLipSyncPack.ts`
+- `/Users/mx/Documents/New project/FX Project/examples/vue3/App.vue`
+
+## Current Product Characteristics
+
+This version currently emphasizes:
+
+- Cleaner editing UI
+- Faster visual review during iteration
+- Safer incremental UI changes
+- Preservation of the underlying WebCut structure as much as possible
+
+## Responsive Direction
+
+This edition is being shaped with three target modes in mind:
+
+- Desktop
+- Tablet
+- Mobile
+
+The current implemented work is mainly:
+
+- Desktop polish
+- Tablet-friendly visual structure
+- Responsive groundwork for later mobile-specific layout passes
+
+## Development
+
+Install root dependencies:
 
 ```bash
-# Using npm
-npm install webcut
-
-# Using yarn
-yarn add webcut
-
-# Using pnpm
-pnpm add webcut
+npm install
 ```
 
-> **Note**: WebCut currently supports modern browser environments. Before use, please ensure that your project has configured the necessary polyfills (if supporting older browsers is required).
+Run the example editor:
 
-## Documentation
+```bash
+cd examples/vue3
+npm install
+npm run dev -- --host 0.0.0.0 --port 4275
+```
 
-WebCut provides detailed documentation to help you get started quickly:
+Type-check the project:
 
-- **API Documentation**: Located in `docs/api.md` and `docs/zh-cn/api.md`
-- **Component Documentation**: Detailed component usage instructions
-- **Quick Start Guide**: Helping new users get started quickly
-- **FAQ**: Solutions and best practices
+```bash
+npm run typecheck
+```
 
-> For online documentation, please visit our documentation site.
+## Preview URLs
 
-## License
+Typical local preview:
 
-This project is licensed under the **MIT License**, allowing free use, modification, and distribution. See the <mcfile name="LICENSE" path="/Users/frustigor/dev/webcut/LICENSE"></mcfile> file for details.
+- `http://127.0.0.1:4275/`
 
-## Acknowledgements
+Typical local network preview:
 
-WebCut's development would not be possible without the support of the following excellent open-source projects:
+- `http://192.168.0.156:4275/`
 
-### Core Dependencies
+## Notes
 
-- [@webav/av-canvas](https://github.com/bilibili/webav/tree/main/packages/av-canvas) - Provides underlying video rendering capabilities
-- [@webav/av-cliper](https://github.com/bilibili/webav/tree/main/packages/av-cliper) - Supports video editing functionality
-- [Vue 3](https://vuejs.org/) - Responsive frontend framework
+- The active working copy is `/Users/mx/Documents/New project/FX Project`
+- The older broken local copy was retired and should not be used as the main baseline
+- Ongoing changes should continue here in small reviewable UI steps
 
-### Development Tools
+## Upstream Base
 
-- [TypeScript](https://www.typescriptlang.org/) - Type system support
-- [naive-ui](https://www.naiveui.com/) - UI component library
-- [@vicons](https://vicons.mono.company/) - Icon library
+Originally based on:
 
-Thank you to the contributors of these projects for their efforts to the open-source community!
+- `WebCut` by `tangshuang`
 
----
+Current repository:
 
-> **Tip**: If you like this project, please give us a ⭐️ support!
+- `https://github.com/devmxai/fx`
+
