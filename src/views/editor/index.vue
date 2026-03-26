@@ -10,7 +10,6 @@ import LangSwitch from '../lang-switch/index.vue';
 import WebCutSelectAspectRatio from '../select-aspect-ratio/index.vue';
 import WebCutTimeClock from '../time-clock/index.vue';
 import WebCutLibrary from '../library/index.vue';
-import { ref } from 'vue';
 import Panel from '../panel/index.vue';
 import ExportButton from '../export-button/index.vue';
 import { WebCutColors, WebCutExtensionPack } from '../../types';
@@ -18,6 +17,12 @@ import { useWebCutLocale } from '../../i18n/hooks';
 import WebCutToast from '../toast/index.vue';
 import AdvancedExport from '../../modules/advanced-export/index.vue';
 import WebCutTextEditPanel from '../panel/text/contenteditable.vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
+
+const initialViewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440;
+const isDesktopViewport = initialViewportWidth >= 1280;
+const editorTopPaneDefaultSize = isDesktopViewport ? 0.66 : 0.8;
+const editorTopPaneMaxSize = isDesktopViewport ? 0.86 : 0.8;
 
 const darkMode = defineModel<boolean | null | undefined>('darkMode', { default: null });
 const language = defineModel<string | null | undefined>('language', { default: null });
@@ -38,21 +43,77 @@ if (props.packs) {
     props.packs.forEach(mod => registerExtensionPack(mod));
 }
 
-const { resize } = useWebCutPlayer();
+const { resize, play, pause } = useWebCutPlayer();
+const { status } = useWebCutContext();
 
 const manager = ref();
 function handleResized() {
     manager.value?.resizeHeight();
 }
+
+function isEditableTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) {
+        return false;
+    }
+
+    const tagName = target.tagName;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName)) {
+        return true;
+    }
+
+    if (target.isContentEditable || target.closest('[contenteditable="true"]')) {
+        return true;
+    }
+
+    return false;
+}
+
+function handleGlobalKeydown(event: KeyboardEvent) {
+    if (event.code !== 'Space') {
+        return;
+    }
+
+    if (event.repeat || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+    }
+
+    if (isEditableTarget(event.target)) {
+        return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (status.value === 1) {
+        pause();
+        return;
+    }
+
+    play();
+}
+
+onMounted(() => {
+    window.addEventListener('keydown', handleGlobalKeydown, true);
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener('keydown', handleGlobalKeydown, true);
+});
 </script>
 
 <template>
     <WebCutProvider>
         <slot name="header"></slot>
         <div class="webcut-editor">
-            <n-split direction="vertical" :default-size="0.8" min="400px" :max="0.8" @update:size="handleResized">
+            <n-split
+                direction="vertical"
+                :default-size="editorTopPaneDefaultSize"
+                min="400px"
+                :max="editorTopPaneMaxSize"
+                @update:size="handleResized"
+            >
                 <template #1>
-                    <n-split default-size="300px" min="200px" max="400px" @update:size="resize">
+                    <n-split default-size="360px" min="360px" max="360px" disabled @update:size="resize">
                         <template #1>
                             <div class="webcut-editor-left-side">
                                 <WebCutLibrary></WebCutLibrary>
@@ -123,7 +184,19 @@ function handleResized() {
 }
 .webcut-editor-split-resize-trigger--horizontal {
     width: 100%;
+    height: 8px;
+    cursor: row-resize;
+    position: relative;
+    background-color: transparent;
+}
+.webcut-editor-split-resize-trigger--horizontal::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
     height: 2px;
+    transform: translateY(-50%);
     background-color: var(--webcut-line-color);
 }
 .webcut-editor-split-resize-trigger--vertical {

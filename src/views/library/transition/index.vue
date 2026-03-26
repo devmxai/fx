@@ -108,7 +108,7 @@ function readTransitionTitle(transitionName: string) {
                     <!-- 转场效果预览图标 -->
                     <TransitionIcon class="webcut-transition-preview-icon" :name="transition.name"></TransitionIcon>
                     <!-- 添加按钮 -->
-                    <n-button class="webcut-add-button" size="tiny" type="primary" circle
+                    <n-button class="webcut-add-button" size="tiny" type="primary" circle :focusable="false"
                         @click.stop="handleTransitionClick(transition.name)">
                         <template #icon>
                             <n-icon :component="Add"></n-icon>

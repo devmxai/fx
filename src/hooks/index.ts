@@ -11,7 +11,7 @@ import { base64ToFile, downloadBlob } from '../libs/file';
 import { assignNotEmpty } from '../libs/object';
 import { isEmpty, createRandomString, clone, assign, debounce, each } from 'ts-fns';
 import { measureAudioDuration, measureVideoDuration, mp4BlobToWavBlob, renderTxt2ImgBitmap } from '../libs';
-import { autoFitRect, measureVideoSize, measureImageSize } from '../libs';
+import { autoFitRect, measureVideoSize, measureImageSize, calcAspectRatio } from '../libs';
 import { readFile, updateProjectState, writeFile } from '../db';
 import { PerformanceMark, mark } from '../libs/performance';
 import { aspectRatioMap } from '../constants';
@@ -210,12 +210,24 @@ export function useWebCutContext(providedContext?: () => Partial<WebCutContext> 
         return source;
     });
 
+    async function updateCanvasSize(canvasWidth: number, canvasHeight: number, aspectRatio?: keyof typeof aspectRatioMap | string) {
+        const finalWidth = Math.max(1, Math.round(canvasWidth));
+        const finalHeight = Math.max(1, Math.round(canvasHeight));
+        const finalAspectRatio = aspectRatio || calcAspectRatio(finalWidth, finalHeight, aspectRatioMap);
+
+        width.value = finalWidth;
+        height.value = finalHeight;
+
+        await updateProjectState(id.value, {
+            aspectRatio: finalAspectRatio,
+            canvasWidth: finalWidth,
+            canvasHeight: finalHeight,
+        });
+    }
+
     async function updateByAspectRatio(aspectRatio: keyof typeof aspectRatioMap) {
         const size = aspectRatioMap[aspectRatio];
-        // 更新宽度和高度
-        width.value = size.width;
-        height.value = size.height;
-        await updateProjectState(id.value, { aspectRatio });
+        await updateCanvasSize(size.width, size.height, aspectRatio);
     }
 
     async function registerExtensionPack(mod: new () => WebCutExtensionPack) {
@@ -263,10 +275,15 @@ export function useWebCutContext(providedContext?: () => Partial<WebCutContext> 
         currentSegment,
         currentTransition,
         currentSource,
+        updateCanvasSize,
         updateByAspectRatio,
         registerExtensionPack,
         findRailExtensionPack,
     };
+}
+
+function secondsToMicroseconds(value: number) {
+    return Math.max(0, Math.round(value * 1_000_000));
 }
 
 export function useWebCutPlayer() {
@@ -286,12 +303,16 @@ export function useWebCutPlayer() {
         duration,
         player,
         rails,
+        selected,
+        current,
         selectSegment,
         unselectSegment,
         currentSource,
         loading,
+        memory,
         modules,
         updateDuration,
+        updateCanvasSize,
     } = refs;
 
     const opts = {
@@ -396,11 +417,63 @@ export function useWebCutPlayer() {
                 if (props.rect) {
                     const rect = sourceItem.meta.rect = sourceItem.meta.rect || {};
                     Object.assign(rect, props.rect);
+
+                    const shouldSyncLipSyncSelection = sourceItem.meta.thingType === 'rhubarb-lip-sync'
+                        && selected.value.length > 1
+                        && !memory.value.__syncingLipSyncSelectionRect;
+
+                    if (shouldSyncLipSyncSelection) {
+                        memory.value.__syncingLipSyncSelectionRect = true;
+                        try {
+                            const linkedSelections = selected.value.filter(item => item.railId === sourceItem.railId && item.segmentId !== sourceItem.segmentId);
+                            for (const selectedItem of linkedSelections) {
+                                const linkedSource = [...sources.value.values()].find(item => item.segmentId === selectedItem.segmentId && item.railId === selectedItem.railId);
+                                if (!linkedSource?.sprite || linkedSource.meta.thingType !== 'rhubarb-lip-sync') {
+                                    continue;
+                                }
+
+                                linkedSource.sprite.rect.x = spr.rect.x;
+                                linkedSource.sprite.rect.y = spr.rect.y;
+                                linkedSource.sprite.rect.w = spr.rect.w;
+                                linkedSource.sprite.rect.h = spr.rect.h;
+                                linkedSource.sprite.rect.angle = spr.rect.angle;
+
+                                const linkedRect = linkedSource.meta.rect = linkedSource.meta.rect || {};
+                                linkedRect.x = spr.rect.x;
+                                linkedRect.y = spr.rect.y;
+                                linkedRect.w = spr.rect.w;
+                                linkedRect.h = spr.rect.h;
+                                linkedRect.angle = spr.rect.angle;
+                            }
+                        }
+                        finally {
+                            memory.value.__syncingLipSyncSelectionRect = false;
+                        }
+                    }
                 }
             });
 
             if (sourceItem?.segmentId) {
                 const { railId, segmentId } = sourceItem;
+                if (sourceItem.meta.thingType === 'rhubarb-lip-sync') {
+                    const keepLipSyncMultiSelection = !!memory.value.__keepLipSyncMultiSelectionOnce
+                        || memory.value.__lipSyncGroupSelectionRailId === railId;
+                    memory.value.__keepLipSyncMultiSelectionOnce = false;
+                    if (keepLipSyncMultiSelection) {
+                        const rail = rails.value.find(item => item.id === railId);
+                        if (rail) {
+                            selected.value = rail.segments.map(segment => ({
+                                segmentId: segment.id,
+                                railId,
+                            }));
+                        }
+                        current.value = { segmentId, railId };
+                        return;
+                    }
+                    selected.value = [{ segmentId, railId }];
+                    current.value = { segmentId, railId };
+                    return;
+                }
                 selectSegment(segmentId, railId);
             }
         });
@@ -564,11 +637,70 @@ export function useWebCutPlayer() {
         clip.tickInterceptor = tickInterceptor;
 
         // 通过前后移动来更新预览帧
-        const currentTime = cursorTime.value;
-        canvas.value?.previewFrame(currentTime + 1);
-        canvas.value?.previewFrame(currentTime - 1);
-        canvas.value?.previewFrame(currentTime);
+    const currentTime = cursorTime.value;
+    canvas.value?.previewFrame(currentTime + 1);
+    canvas.value?.previewFrame(currentTime - 1);
+    canvas.value?.previewFrame(currentTime);
     };
+
+    async function createRhubarbLipSyncClip(config: NonNullable<WebCutSourceMeta['rhubarbLipSync']>) {
+        const shapeEntries = Object.entries(config.shapeFileIds || {}).filter(([, id]) => typeof id === 'string' && !!id) as [string, string][];
+        if (!shapeEntries.length) {
+            throw new Error('No mouth PNG files were stored for this lip sync clip.');
+        }
+
+        const bitmaps = new Map<string, ImageBitmap>();
+        const fallbackShapeOrder = ['X', 'A'];
+
+        const resolveShapeKey = (preferredShape: string) => {
+            if (config.shapeFileIds[preferredShape]) {
+                return preferredShape;
+            }
+            for (const fallbackShape of fallbackShapeOrder) {
+                if (config.shapeFileIds[fallbackShape]) {
+                    return fallbackShape;
+                }
+            }
+            return shapeEntries[0][0];
+        };
+
+        try {
+            for (const [shapeKey, storedFileId] of shapeEntries) {
+                const shapeFile = await readFile(storedFileId);
+                if (!shapeFile) {
+                    continue;
+                }
+                bitmaps.set(shapeKey, await createImageBitmap(shapeFile));
+            }
+
+            const frames: VideoFrame[] = [];
+
+            let currentTimestamp = 0;
+            for (const cue of config.mouthCues || []) {
+                const shapeKey = resolveShapeKey(cue.value);
+                const bitmap = bitmaps.get(shapeKey);
+                if (!bitmap) {
+                    continue;
+                }
+
+                const duration = Math.max(1, secondsToMicroseconds(cue.end - cue.start));
+                frames.push(new VideoFrame(bitmap, {
+                    timestamp: currentTimestamp,
+                    duration,
+                }));
+                currentTimestamp += duration;
+            }
+
+            if (!frames.length) {
+                throw new Error('Unable to build lip sync frames from the uploaded PNG shapes.');
+            }
+
+            return new ImgClip(frames);
+        }
+        finally {
+            bitmaps.forEach(bitmap => bitmap.close());
+        }
+    }
 
     /**
      * 将素材推送到当前视频中
@@ -583,6 +715,9 @@ export function useWebCutPlayer() {
             let clip: MP4Clip | ImgClip | AudioClip;
             let text, fileId, url, file;
             let segMeta = clone(meta);
+            let visualSourceSize: { width: number; height: number } | null = null;
+            const hasVideoSegmentInTimeline = rails.value.some(rail => rail.segments.some(segment => sources.value.get(segment.sourceKey)?.type === 'video'));
+            const shouldAdoptCanvasFromFirstVideo = type === 'video' && !hasVideoSegmentInTimeline;
             if (type === 'video') {
                 const volume = meta.video?.volume;
                 const offset = meta.video?.offset;
@@ -616,6 +751,11 @@ export function useWebCutPlayer() {
                     const [clip1, clip2] = await clip.split(offset);
                     clip1.destroy();
                     clip = clip2;
+                }
+
+                const src = (file || url) as File | string;
+                if (src && (shouldAdoptCanvasFromFirstVideo || meta.autoFitRect)) {
+                    visualSourceSize = await measureVideoSize(src);
                 }
             }
             else if (type === 'audio') {
@@ -651,7 +791,27 @@ export function useWebCutPlayer() {
                 }
             }
             else if (type === 'image') {
-                if (source instanceof File) {
+                if (meta.rhubarbLipSync) {
+                    clip = await createRhubarbLipSyncClip(meta.rhubarbLipSync);
+
+                    if (source instanceof File) {
+                        file = source;
+                        fileId = await writeFile(source);
+                    }
+                    else if (source.startsWith('data:')) {
+                        const ext = source.split(';')[0].split('/')[1];
+                        file = base64ToFile(source, `image.${ext}`);
+                        fileId = await writeFile(file);
+                    }
+                    else if (source.startsWith('file:')) {
+                        fileId = source.replace('file:', '');
+                        file = await readFile(fileId) || undefined;
+                    }
+                    else {
+                        url = source;
+                    }
+                }
+                else if (source instanceof File) {
                     file = source;
                     fileId = await writeFile(source);
                     const type = source.type;
@@ -698,6 +858,11 @@ export function useWebCutPlayer() {
                         clip = new ImgClip(res.body!);
                     }
                 }
+
+                const src = (file || url) as File | string;
+                if (src && meta.autoFitRect) {
+                    visualSourceSize = await measureImageSize(src);
+                }
             }
             else if (type === 'text') {
                 const info: Awaited<ReturnType<typeof initTextMaterial>> = await initTextMaterial(source as string, meta.text?.css, segMeta.text?.highlights || []);
@@ -712,14 +877,19 @@ export function useWebCutPlayer() {
 
             const spr = new VisibleSprite(clip!);
 
+            if (shouldAdoptCanvasFromFirstVideo && visualSourceSize) {
+                await updateCanvasSize(visualSourceSize.width, visualSourceSize.height);
+            }
+
             // 处理rect
             if (meta.rect) {
                 assignNotEmpty(spr.rect, meta.rect);
             }
             // 自动适配
             else if (meta.autoFitRect && ['image', 'video'].includes(type)) {
-                const src = (file || url) as string;
-                const size = type === 'image' ? await measureImageSize(src) : await measureVideoSize(src);
+                const size = visualSourceSize || (() => {
+                    throw new Error('Visual source size is required for autoFitRect');
+                })();
                 const canvasSize = {
                     width: width.value,
                     height: height.value,

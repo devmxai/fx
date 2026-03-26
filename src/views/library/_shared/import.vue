@@ -24,6 +24,7 @@ const props = defineProps<{
     thingType: WebCutThingType;
     accept: string;
     supportsDirectoryUpload?: boolean;
+    compact?: boolean;
 }>();
 
 // 定义进度事件类型
@@ -257,8 +258,17 @@ async function importVideo(file: File) {
 
 <template>
     <div class="webcut-meterial-panel-upload">
-        <n-upload multiple :show-file-list="false" :accept="props.accept" @change="handleFileChange"
+        <n-upload v-if="props.compact" multiple :show-file-list="false" :accept="props.accept" @change="handleFileChange"
             :disabled="isTranscoding">
+            <n-button class="webcut-library-import-trigger" quaternary circle :disabled="isTranscoding" :focusable="false">
+                <template #icon>
+                    <n-icon :component="Upload"></n-icon>
+                </template>
+            </n-button>
+        </n-upload>
+
+        <n-upload multiple :show-file-list="false" :accept="props.accept" @change="handleFileChange"
+            :disabled="isTranscoding" v-else>
             <n-upload-dragger>
                 <div v-if="isTranscoding">
                     <n-spin size="large" />
@@ -273,7 +283,7 @@ async function importVideo(file: File) {
             </n-upload-dragger>
         </n-upload>
 
-        <div style="margin-top: 16px; text-align: center;" v-if="props.supportsDirectoryUpload">
+        <div style="margin-top: 16px; text-align: center;" v-if="props.supportsDirectoryUpload && !props.compact">
             <n-button type="default" @click="handleImportFolder" :disabled="isTranscoding" text size="small">
                 <small>{{ t('导入文件夹') }}</small>
             </n-button>

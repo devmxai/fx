@@ -41,7 +41,7 @@ const emit = defineEmits(['sort', 'resize']);
 const maxHeight = defineModel<number>('maxHeight', { default: 264 });
 const props = defineProps<WebCutManagerProps>();
 
-const { rails, manager, selected, current, sources, toggleSegment, unselectSegment, selectSegment, modules } = useWebCutContext();
+const { rails, manager, selected, current, sources, canvas, memory, toggleSegment, unselectSegment, selectSegment, modules } = useWebCutContext();
 const { resort } = useWebCutPlayer();
 const slots = useSlots();
 const { scroll1, scroll2, totalPx, timeToPx, pxToTime, pxOf1Frame, resetSegmentTime } = useWebCutManager();
@@ -386,7 +386,49 @@ function canMoveSegment(_e: any, segment: WebCutSegment, rail: WebCutRail) {
     return true;
 }
 
+function clearTimelineSelection() {
+    selected.value = [];
+    current.value = null;
+    memory.value.__keepLipSyncMultiSelectionOnce = false;
+    memory.value.__lipSyncGroupSelectionRailId = null;
+    if (canvas.value) {
+        canvas.value.activeSprite = null;
+    }
+}
+
 function handleClickSegment(item: WebCutSegment, rail: WebCutRail) {
+    if (rail.type === 'rhubarb-lip-sync') {
+        if (memory.value.__lipSyncGroupSelectionRailId === rail.id) {
+            selected.value = rail.segments.map(segment => ({
+                segmentId: segment.id,
+                railId: rail.id,
+            }));
+            current.value = {
+                segmentId: item.id,
+                railId: rail.id,
+            };
+            const groupedSource = sources.value.get(item.sourceKey);
+            if (groupedSource?.sprite && canvas.value) {
+                canvas.value.activeSprite = groupedSource.sprite;
+            }
+            return;
+        }
+        selected.value = [{
+            segmentId: item.id,
+            railId: rail.id,
+        }];
+        current.value = {
+            segmentId: item.id,
+            railId: rail.id,
+        };
+        memory.value.__keepLipSyncMultiSelectionOnce = false;
+        const source = sources.value.get(item.sourceKey);
+        if (source?.sprite && canvas.value) {
+            canvas.value.activeSprite = source.sprite;
+        }
+        return;
+    }
+    memory.value.__keepLipSyncMultiSelectionOnce = false;
     toggleSegment(item.id, rail.id);
 }
 
@@ -462,7 +504,7 @@ manager.value = exposes;
         <div class="webcut__manager__main">
             <scroll-box class="webcut__manager__main__scroll-box" x-scrollable ref="scroll2" :content-width="totalPx + 10">
                 <div class="webcut__mananger__top-bar"></div>
-                <div class="webcute__manager__main__rails">
+                <div class="webcute__manager__main__rails" @click.self="clearTimelineSelection">
                     <div
                         v-for="(rail,railIndex) in dataList" :key="rail.id"
                         class="webcute__manager__main__rail"
@@ -472,6 +514,7 @@ manager.value = exposes;
                             'webcute__manager__main__rail--hidden': rail.hidden,
                         }"
                         :style="{ '--rail-height': calcRailHeightByType(rail) }"
+                        @click.self="clearTimelineSelection"
                     >
                         <AdjustableBox
                             v-for="(item,segmentIndex) in rail.segments"
@@ -532,7 +575,7 @@ manager.value = exposes;
                     </div>
                     <slot name="mainRailsFooter"></slot>
                 </div>
-                <div class="webcut__mananger__footer-placeholder" v-if="rails.length > 0"></div>
+                <div class="webcut__mananger__footer-placeholder" v-if="rails.length > 0" @click="clearTimelineSelection"></div>
                 <Ruler class="webcut__manager__main__ruler" />
                 <Ticker class="webcut__manager__main__ticker" />
                 <Cursor class="webcut__manager__main__curosr" />

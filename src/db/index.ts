@@ -252,6 +252,14 @@ export async function updateProjectState(projectId: string, state: Partial<WebCu
         data.aspectRatio = state.aspectRatio;
         neeedToUpdate = true;
     }
+    if (typeof state.canvasWidth === 'number') {
+        data.canvasWidth = state.canvasWidth;
+        neeedToUpdate = true;
+    }
+    if (typeof state.canvasHeight === 'number') {
+        data.canvasHeight = state.canvasHeight;
+        neeedToUpdate = true;
+    }
 
     if (neeedToUpdate) {
         const prevState = await getProjectState(projectId) || {};
@@ -369,6 +377,8 @@ export async function getProjectState(projectId: string): Promise<WebCutProjectS
         return {
             historyAt: '',
             aspectRatio: '4:3',
+            canvasWidth: 1440,
+            canvasHeight: 1080,
         };
     }
     const projectState = await projectStateStorage.getItem(projectId);

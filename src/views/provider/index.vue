@@ -161,6 +161,23 @@ provideToastContext();
     cursor: url(../../img/rotate.svg) 20 20, crosshair !important;
 }
 
+.webcut-root :deep(.sprite-rect) {
+    border-color: color-mix(in srgb, var(--webcut-primary-color) 70%, white) !important;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--webcut-primary-color) 18%, transparent);
+}
+
+.webcut-root :deep(.sprite-rect .ctrl-key-t),
+.webcut-root :deep(.sprite-rect .ctrl-key-r),
+.webcut-root :deep(.sprite-rect .ctrl-key-b),
+.webcut-root :deep(.sprite-rect .ctrl-key-l),
+.webcut-root :deep(.sprite-rect .ctrl-key-lt),
+.webcut-root :deep(.sprite-rect .ctrl-key-rt),
+.webcut-root :deep(.sprite-rect .ctrl-key-rb),
+.webcut-root :deep(.sprite-rect .ctrl-key-lb) {
+    border-color: color-mix(in srgb, var(--webcut-primary-color) 75%, white) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--webcut-background-color) 80%, transparent);
+}
+
 /** override naiveui */
 
 .webcut-root :deep(.n-form) {

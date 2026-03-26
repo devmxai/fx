@@ -11,21 +11,14 @@ const selectedNav = defineModel<Nav>('selected', { default: null });
 const thingNavs = defineModel<Nav[]>('navs', {
   default: [
     {
-      label: '当前',
-      key: 'this',
-    },
-    {
       label: '导入',
       key: 'import',
-    },
-    {
-      label: '所有',
-      key: 'all',
     },
   ],
 });
 const props = defineProps<{
     thingType: WebCutThingType;
+    orientation?: 'vertical' | 'horizontal';
 }>();
 
 const t = useT();
@@ -91,8 +84,16 @@ defineExpose({
 </script>
 
 <template>
-    <aside class="webcut-library-panel-aside">
-      <div v-for="nav in thingNavs" :key="nav.key" class="webcut-library-panel-aside-btn" :class="{ 'webcut-library-panel-aside-btn--active': navKey === nav.key }" @click="handleSelect(nav)">{{ t(nav.label) }}</div>
+    <aside class="webcut-library-panel-aside" :class="`webcut-library-panel-aside--${props.orientation || 'vertical'}`">
+      <div
+        v-for="nav in thingNavs"
+        :key="nav.key"
+        class="webcut-library-panel-aside-btn"
+        :class="{ 'webcut-library-panel-aside-btn--active': navKey === nav.key }"
+        @click="handleSelect(nav)"
+      >
+        {{ t(nav.label) }}
+      </div>
     </aside>
 </template>
 

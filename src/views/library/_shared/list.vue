@@ -31,7 +31,7 @@ const t = useT();
 const { push, pushSeries } = useWebCutPlayer();
 const { removeFile, addExistingFileToProject } = useWebCutLibrary();
 const { push: pushHistory } = useWebCutHistory();
-const { id: projectId, cursorTime } = useWebCutContext();
+const { id: projectId, cursorTime, rails } = useWebCutContext();
 
 // 右键菜单相关状态
 const showDropdown = ref(false);
@@ -42,6 +42,7 @@ const currentFile = ref<any>(null);
 // 多选相关状态
 const selectedFiles = ref<Map<string, number>>(new Map()); // 存储选中文件ID和选择顺序
 const isMultiSelectMode = ref(false); // 是否处于多选模式
+const previewShapeMap = ref<Record<string, string>>({});
 
 // 右键菜单选项
 const options = computed(() => [
@@ -155,7 +156,7 @@ async function handleBatchAdd() {
                 source: `file:${material.id}`,
             })),
             {
-                startTime: cursorTime.value,
+                startTime: getPreferredInsertStartTime(),
                 thingType: props.thingType,
             }
         );
@@ -188,6 +189,9 @@ async function handleAdd(material: any) {
         }
 
         await push(props.materialType, `file:${id}`, {
+            time: {
+                start: getPreferredInsertStartTime(),
+            },
             thingType: props.thingType,
         });
         await pushHistory();
@@ -210,6 +214,94 @@ function toggleMultiSelectMode() {
     if (!isMultiSelectMode.value) {
         selectedFiles.value.clear();
     }
+}
+
+function getPreferredInsertStartTime() {
+    if (props.materialType !== 'image' && props.thingType !== 'image') {
+        return cursorTime.value;
+    }
+
+    const targetTypes = [props.thingType, props.materialType].filter(Boolean);
+    let latestEnd = -1;
+
+    for (const rail of rails.value) {
+        if (!targetTypes.includes(rail.type)) {
+            continue;
+        }
+        for (const segment of rail.segments) {
+            latestEnd = Math.max(latestEnd, segment.end);
+        }
+    }
+
+    return latestEnd >= 0 ? latestEnd : cursorTime.value;
+}
+
+function setPreviewRef(fileId: string, el: Element | null) {
+    if (!el) {
+        return;
+    }
+
+    const host = el as HTMLElement;
+    const media = host.querySelector('img, video') as HTMLImageElement | HTMLVideoElement | null;
+    if (!media) {
+        previewShapeMap.value[fileId] = 'wide';
+        return;
+    }
+
+    const applyShape = () => {
+        let width = 0;
+        let height = 0;
+
+        if (media instanceof HTMLVideoElement) {
+            width = media.videoWidth;
+            height = media.videoHeight;
+        }
+        else {
+            width = media.naturalWidth;
+            height = media.naturalHeight;
+        }
+
+        if (!width || !height) {
+            previewShapeMap.value[fileId] = 'wide';
+            return;
+        }
+
+        const ratio = width / height;
+        if (ratio < 0.85) {
+            previewShapeMap.value[fileId] = 'portrait';
+        }
+        else if (ratio < 1.15) {
+            previewShapeMap.value[fileId] = 'square';
+        }
+        else if (ratio < 1.55) {
+            previewShapeMap.value[fileId] = 'landscape';
+        }
+        else {
+            previewShapeMap.value[fileId] = 'wide';
+        }
+    };
+
+    if (media instanceof HTMLVideoElement) {
+        if (media.videoWidth && media.videoHeight) {
+            applyShape();
+        }
+        else {
+            media.addEventListener('loadedmetadata', applyShape, { once: true });
+        }
+        return;
+    }
+
+    if (media.complete && media.naturalWidth && media.naturalHeight) {
+        applyShape();
+    }
+    else {
+        media.addEventListener('load', applyShape, { once: true });
+    }
+}
+
+function getPreviewShapeClass(file: WebCutMaterial) {
+    const shape = previewShapeMap.value[file.id] || 'wide';
+    return `webcut-material-preview--${shape}`;
 }
 </script>
 
@@ -239,7 +331,7 @@ function toggleMultiSelectMode() {
             @mouseenter="emit('enterItem', file)"
             @click="handleFileClick(file, $event)"
         >
-            <div class="webcut-material-preview">
+            <div class="webcut-material-preview" :class="getPreviewShapeClass(file)" :ref="(el) => setPreviewRef(file.id, el as Element | null)">
                 <!-- 新素材标识 -->
                 <n-tag type="error" :bordered="false" size="tiny" round :color="{ color: '#f55', textColor: 'white' }" class="webcut-material-badge" v-if="file.time + 5000 > Date.now()"><small>{{ t('新') }}</small></n-tag>
 
@@ -263,7 +355,7 @@ function toggleMultiSelectMode() {
                 <slot :file="file"></slot>
 
                 <!-- 添加按钮 -->
-                <n-button v-if="!isMultiSelectMode" class="webcut-add-button" size="tiny" type="primary" circle @click.stop="handleAdd(file)">
+                <n-button v-if="!isMultiSelectMode" class="webcut-add-button" size="tiny" type="primary" circle :focusable="false" @click.stop="handleAdd(file)">
                     <template #icon>
                         <n-icon>
                             <Add />

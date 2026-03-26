@@ -11,6 +11,7 @@ export function useWebCutHistory() {
     const {
         id: projectId, rails, sources, canUndo, canRedo, canRecover, canvas, selected, current, clips, sprites,
         updateByAspectRatio,
+        updateCanvasSize,
         loading,
         memory,
     } = useWebCutContext();
@@ -40,9 +41,12 @@ export function useWebCutHistory() {
             dataToRecover.value = savedData;
             canRecover.value = true;
             // 恢复一些视频基础配置
-            const { aspectRatio } = savedData;
-            if (aspectRatio) {
-                updateByAspectRatio(aspectRatio);
+            const { aspectRatio, canvasWidth, canvasHeight } = savedData;
+            if (typeof canvasWidth === 'number' && typeof canvasHeight === 'number') {
+                await updateCanvasSize(canvasWidth, canvasHeight, aspectRatio);
+            }
+            else if (aspectRatio) {
+                await updateByAspectRatio(aspectRatio as any);
             }
         }
     });
@@ -302,9 +306,12 @@ export function useWebCutHistory() {
                 return;
             }
 
-            const { aspectRatio, state } = projectState;
-            if (aspectRatio) {
-                updateByAspectRatio(aspectRatio);
+            const { aspectRatio, canvasWidth, canvasHeight, state } = projectState;
+            if (typeof canvasWidth === 'number' && typeof canvasHeight === 'number') {
+                await updateCanvasSize(canvasWidth, canvasHeight, aspectRatio);
+            }
+            else if (aspectRatio) {
+                await updateByAspectRatio(aspectRatio as any);
             }
             await recoverHistory(state);
 

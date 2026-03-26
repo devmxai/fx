@@ -39,7 +39,7 @@ async function handleAdd() {
         <div class="webcut-material-item">
           <div class="webcut-material-preview">
             <div>{{ t('默认文本') }}</div>
-            <n-button class="webcut-add-button" size="tiny" type="primary" circle @click="handleAdd">
+            <n-button class="webcut-add-button" size="tiny" type="primary" circle :focusable="false" @click="handleAdd">
               <template #icon>
                 <n-icon>
                   <Add />

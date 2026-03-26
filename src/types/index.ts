@@ -333,6 +333,14 @@ export interface WebCutAnimationData {
 export type WebCutSourceMeta = {
     id?: string;
     thingType?: WebCutThingType;
+    rhubarbLipSync?: {
+        mouthCues: {
+            start: number;
+            end: number;
+            value: string;
+        }[];
+        shapeFileIds: Partial<Record<string, string>>;
+    };
 
     /** 素材的位置信息 */
     rect?: Partial<{
@@ -429,6 +437,8 @@ export type WebCutSourceData = Omit<WebCutSource, 'clip' | 'sprite'> & {
 export type WebCutProjectState = {
     historyAt: string;
     aspectRatio: string;
+    canvasWidth?: number;
+    canvasHeight?: number;
 };
 
 export type WebCutProjectHistoryState = {

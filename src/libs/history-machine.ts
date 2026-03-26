@@ -1,6 +1,5 @@
-import { WebCutProjectHistoryData, WebCutProjectHistoryState } from '../types';
+import { WebCutProjectHistoryData, WebCutProjectHistoryState, WebCutProjectState } from '../types';
 import { pushProjectHistory, getProjectHistory, clearProjectHistory, moveProjectHistoryTo, getProjectState } from '../db';
-import { aspectRatioMap } from '../constants';
 
 // 历史记录管理器类
 export class HistoryMachine {
@@ -12,7 +11,7 @@ export class HistoryMachine {
     private isInitializing: boolean = false;
     private isInitialized: boolean = false;
     private isReadyResolve: any = null;
-    private isReady = new Promise<{ aspectRatio: keyof typeof aspectRatioMap, state: WebCutProjectHistoryState }>(r => this.isReadyResolve = r);
+    private isReady = new Promise<(WebCutProjectState & { state: WebCutProjectHistoryState }) | null>(r => this.isReadyResolve = r);
 
     constructor(projectId: string) {
         this.projectId = projectId;
@@ -45,11 +44,16 @@ export class HistoryMachine {
         try {
             const savedState = await getProjectState(this.projectId);
             if (savedState) {
-                const { aspectRatio, historyAt } = savedState;
+                const { historyAt } = savedState;
                 currentHistory = await this.updateCurrent(historyAt);
+                if (!currentHistory) {
+                    this.isReadyResolve(null);
+                    this.isInitialized = true;
+                    return await this.isReady;
+                }
                 const state = currentHistory.state;
                 this.isReadyResolve({
-                    aspectRatio,
+                    ...savedState,
                     state,
                 });
             }

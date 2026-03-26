@@ -74,6 +74,9 @@ vitest.config.js.timestamp-*
 *.swp
 *.swo
 *~
+.playwright-cli/
+output/
+examples/vue3/.local-tools/
 
 # OS generated files
 Thumbs.db

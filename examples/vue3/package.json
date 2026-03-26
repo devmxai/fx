@@ -4,12 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "vite"
+    "dev": "vite",
+    "install:rhubarb": "node ./scripts/install-rhubarb.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "busboy": "^1.6.0",
     "webcut": "../.."
   },
   "devDependencies": {

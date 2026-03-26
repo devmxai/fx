@@ -74,19 +74,20 @@ function onResetNav() {
 </script>
 
 <template>
-  <div class="webcut-library-panel">
-    <Aside
-      v-model:current="navKey"
-      v-model:selected="selectedNav"
-      :thingType="props.thingType"
-      :navs="props.navs"
-      ref="asideRef"
-    ></Aside>
+  <div class="webcut-library-panel webcut-library-panel--stacked">
+    <div class="webcut-library-panel-toolbar">
+      <Aside
+        v-model:current="navKey"
+        v-model:selected="selectedNav"
+        :thingType="props.thingType"
+        :navs="props.navs"
+        orientation="horizontal"
+        ref="asideRef"
+      ></Aside>
 
-    <!-- 右侧素材列表 -->
-    <main class="webcut-library-panel-main">
       <ImportBox
         v-if="navKey === 'import'"
+        compact
         v-model:current="navKey"
         :thingType="props.thingType"
         :accept="props.accept"
@@ -94,34 +95,15 @@ function onResetNav() {
         @fileImport="asideRef?.resetToFirstNav"
         @dirImport="asideRef?.resetToFirstNav"
       ></ImportBox>
+    </div>
 
-      <scroll-box class="webcut-material-container" v-if="navKey === 'this'">
+    <main class="webcut-library-panel-main">
+      <scroll-box class="webcut-material-container" v-if="navKey === 'import'">
         <List
           :files="projectFileList"
           :thingType="props.thingType"
           :materialType="props.materialType"
           :enableMultipleSelect="props.enableMultipleSelect"
-          @clickItem="emit('clickListItem', $event)"
-          @leaveItem="emit('leaveListItem', $event)"
-          @enterItem="emit('enterListItem', $event)"
-        >
-          <template #preview="{ file }">
-            <slot name="listItemPreview" :file="file"></slot>
-          </template>
-          <template #default="{ file }">
-            <slot name="listItemContent" :file="file"></slot>
-          </template>
-        </List>
-      </scroll-box>
-
-      <scroll-box class="webcut-material-container" v-if="navKey === 'all'">
-        <List
-          :files="allFileList"
-          :thingType="props.thingType"
-          :materialType="props.materialType"
-          :enableMultipleSelect="props.enableMultipleSelect"
-          disableContextMenu
-          enableAddToProject
           @clickItem="emit('clickListItem', $event)"
           @leaveItem="emit('leaveListItem', $event)"
           @enterItem="emit('enterListItem', $event)"

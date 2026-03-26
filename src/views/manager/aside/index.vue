@@ -5,14 +5,28 @@ import { useWebCutContext } from '../../../hooks';
 import { useWebCutManager } from '../../../hooks/manager';
 import { WebCutRail } from '../../../types';
 import { computed } from 'vue';
+import { useT } from '../../../i18n/hooks';
 
 const props = defineProps<{
     rail: WebCutRail
 }>();
 
-const { rails, sources, current, canvas, selected, findRailExtensionPack } = useWebCutContext();
+const { rails, sources, current, canvas, selected, memory, findRailExtensionPack } = useWebCutContext();
 const { toggleRailHidden, toggleRailMute } = useWebCutManager();
+const t = useT();
 const railExtensionPack = computed(() => findRailExtensionPack(props.rail));
+const isLipSyncRail = computed(() => props.rail.type === 'rhubarb-lip-sync');
+const areAllRailSegmentsSelected = computed(() => {
+    if (!props.rail.segments.length) {
+        return false;
+    }
+    return props.rail.segments.every(segment => selected.value.some(item => item.segmentId === segment.id && item.railId === props.rail.id));
+});
+const isLipSyncGroupSelectionActive = computed(() => {
+    return isLipSyncRail.value
+        && memory.value.__lipSyncGroupSelectionRailId === props.rail.id
+        && areAllRailSegmentsSelected.value;
+});
 const icon = computed(() => {
     if (railExtensionPack.value?.materialConfig) {
         return railExtensionPack.value.materialConfig?.icon;
@@ -74,13 +88,62 @@ function handleDeleteRail(railId: string) {
         rails.value.splice(railIndex, 1);
     }
 }
+
+function handleSelectAllRailSegments(rail: WebCutRail) {
+    if (!rail.segments.length) {
+        return;
+    }
+
+    const isGroupSelectionActive = memory.value.__lipSyncGroupSelectionRailId === rail.id
+        && rail.segments.every(segment => selected.value.some(item => item.segmentId === segment.id && item.railId === rail.id));
+    if (isGroupSelectionActive) {
+        selected.value = selected.value.filter(item => item.railId !== rail.id);
+        if (current.value?.railId === rail.id) {
+            current.value = null;
+        }
+        const activeSource = [...sources.value.values()].find(item => item.sprite === canvas.value?.activeSprite);
+        if (activeSource?.railId === rail.id && canvas.value) {
+            canvas.value.activeSprite = null;
+        }
+        memory.value.__lipSyncGroupSelectionRailId = null;
+        memory.value.__keepLipSyncMultiSelectionOnce = false;
+        return;
+    }
+
+    selected.value = rail.segments.map(segment => ({
+        segmentId: segment.id,
+        railId: rail.id,
+    }));
+    memory.value.__lipSyncGroupSelectionRailId = rail.id;
+    memory.value.__keepLipSyncMultiSelectionOnce = true;
+
+    const firstSegment = rail.segments[0];
+    current.value = {
+        segmentId: firstSegment.id,
+        railId: rail.id,
+    };
+
+    const firstSource = sources.value.get(firstSegment.sourceKey);
+    if (firstSource?.sprite && canvas.value) {
+        canvas.value.activeSprite = firstSource.sprite;
+    }
+}
 </script>
 
 <template>
-    <div class="webcut-manager-webcut-manager-rail-left-side">
-        <span class="webcut-manager-webcut-manager-rail-left-side-type-icon" :class="{'webcut-manager-webcut-manager-rail-left-side-main-icon': rail.main }">
+    <div class="webcut-manager-webcut-manager-rail-left-side" :class="{ 'webcut-manager-webcut-manager-rail-left-side--lipsync': isLipSyncRail }">
+        <span v-if="!isLipSyncRail" class="webcut-manager-webcut-manager-rail-left-side-type-icon" :class="{'webcut-manager-webcut-manager-rail-left-side-main-icon': rail.main }">
             <n-icon :component="icon" v-if="icon"></n-icon>
         </span>
+        <button
+            v-if="isLipSyncRail"
+            class="webcut-manager-webcut-manager-rail-left-side-action-chip"
+            :class="{ 'webcut-manager-webcut-manager-rail-left-side-action-chip--active': isLipSyncGroupSelectionActive }"
+            :title="t('Select all lip sync frames')"
+            @click="handleSelectAllRailSegments(rail)"
+        >
+            ALL
+        </button>
         <span class="webcut-manager-webcut-manager-rail-left-side-action-icon">
             <n-icon :component="Unlocked" @click="handleToggleLocked(rail)" v-if="enabledFeatures.lock && !rail.locked"></n-icon>
             <n-icon :component="Locked" @click="handleToggleLocked(rail)" v-if="enabledFeatures.lock && rail.locked"></n-icon>
@@ -113,6 +176,15 @@ function handleDeleteRail(railId: string) {
         height: 1em;
     }
 }
+.webcut-manager-webcut-manager-rail-left-side--lipsync {
+    gap: 4px;
+    margin-left: -2px;
+}
+.webcut-manager-webcut-manager-rail-left-side--lipsync .webcut-manager-webcut-manager-rail-left-side-action-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
 .webcut-manager-webcut-manager-rail-left-side-type-icon {
     opacity: .2;
 }
@@ -124,6 +196,34 @@ function handleDeleteRail(railId: string) {
 }
 .webcut-manager-webcut-manager-rail-left-side-action-icon:hover {
     color: var(--primary-color);
+}
+.webcut-manager-webcut-manager-rail-left-side-action-icon--active {
+    color: var(--primary-color);
+}
+.webcut-manager-webcut-manager-rail-left-side-action-chip {
+    width: 30px;
+    height: 18px;
+    border: 1px solid color-mix(in srgb, var(--primary-color) 32%, var(--border-color));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--webcut-background-color) 84%, transparent);
+    color: var(--text-color-base);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin-right: 2px;
+    cursor: pointer;
+    transition: color .2s, border-color .2s, background-color .2s;
+    flex: 0 0 auto;
+}
+.webcut-manager-webcut-manager-rail-left-side-action-chip:hover,
+.webcut-manager-webcut-manager-rail-left-side-action-chip--active {
+    color: var(--primary-color);
+    border-color: color-mix(in srgb, var(--primary-color) 72%, var(--border-color));
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
 }
 .webcut-manager-webcut-manager-rail-left-side-action-icon--disabled {
     opacity: .1;
