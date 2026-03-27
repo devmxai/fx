@@ -15,6 +15,34 @@ const exampleRoot = fileURLToPath(new URL('.', import.meta.url));
 const rhubarbVersion = '1.14.0';
 const localRhubarbDir = path.resolve(exampleRoot, '.local-tools', 'rhubarb');
 
+function isPrivateIPv4(address: string) {
+  return /^10\./.test(address)
+    || /^192\.168\./.test(address)
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(address);
+}
+
+function resolveCanonicalHost() {
+  if (process.env.WEBCUT_CANONICAL_HOST) {
+    return process.env.WEBCUT_CANONICAL_HOST;
+  }
+
+  const interfaces = os.networkInterfaces();
+  const candidates: string[] = [];
+
+  for (const networkEntries of Object.values(interfaces)) {
+    for (const entry of networkEntries || []) {
+      if (!entry || entry.internal || entry.family !== 'IPv4') {
+        continue;
+      }
+      candidates.push(entry.address);
+    }
+  }
+
+  return candidates.find(isPrivateIPv4) || candidates[0] || null;
+}
+
+const canonicalHost = resolveCanonicalHost();
+
 function getLocalRhubarbBinaryPath() {
   const platformAssetMap = {
     darwin: `Rhubarb-Lip-Sync-${rhubarbVersion}-macOS`,
@@ -388,8 +416,10 @@ async function handleRhubarbRenderOverlay(req: IncomingMessage, res: ServerRespo
 
 export default defineConfig({
   server: {
-    host: '127.0.0.1',
+    host: canonicalHost || '0.0.0.0',
     port: 4273,
+    strictPort: true,
+    allowedHosts: true,
   },
   plugins: [
     vue(),

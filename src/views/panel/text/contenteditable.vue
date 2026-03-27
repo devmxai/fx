@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, ref, watch } from 'vue';
 import { useWebCutContext, useWebCutPlayer } from '../../../hooks';
 import { buildTextAsDOM, measureTextSize } from '../../../libs';
 import { clone } from 'ts-fns';
@@ -9,6 +9,8 @@ const { currentSource, editTextState, player, width, height } = useWebCutContext
 const editBoxRef = ref<HTMLDivElement | null>(null);
 const editNodeRef = ref<HTMLElement | null>(null);
 const coverLayerRef = ref<HTMLElement | null>(null);
+const containerRef = ref<HTMLDivElement | null>(null);
+let previewSyncUnsubscribe: Function | null = null;
 
 // 监听编辑状态变化，自动聚焦和初始化内容
 watch(editTextState, (state) => {
@@ -61,6 +63,41 @@ function isMathCurrentSource() {
     return currentSource.value && editTextState.value && currentSource.value.key === editTextState.value.sourceKey;
 }
 
+function getPreviewMetrics() {
+    if (!player.value) {
+        return null;
+    }
+
+    const previewRect = player.value.getPreviewRect?.() || player.value.viewport?.getBoundingClientRect?.();
+    if (!previewRect) {
+        return null;
+    }
+
+    return {
+        left: previewRect.left,
+        top: previewRect.top,
+        scaleX: previewRect.width / width.value,
+        scaleY: previewRect.height / height.value,
+    };
+}
+
+function syncEditContainer() {
+    if (!containerRef.value) {
+        return;
+    }
+
+    const metrics = getPreviewMetrics();
+    if (!metrics) {
+        return;
+    }
+
+    containerRef.value.style.left = `${metrics.left}px`;
+    containerRef.value.style.top = `${metrics.top}px`;
+    containerRef.value.style.width = `${width.value}px`;
+    containerRef.value.style.height = `${height.value}px`;
+    containerRef.value.style.transform = `scale(${metrics.scaleX}, ${metrics.scaleY})`;
+}
+
 function mount() {
     if (!player.value) {
         return;
@@ -78,18 +115,20 @@ function mount() {
         return;
     }
 
-    const { viewport, canvasScale = 1 } = player.value;
-    const { top, left } = viewport.getBoundingClientRect();
+    const metrics = getPreviewMetrics();
+    if (!metrics) {
+        return;
+    }
 
     const container = document.createElement('div');
     container.style.position = 'fixed';
-    container.style.left = `${left}px`;
-    container.style.top = `${top}px`;
+    container.style.left = `${metrics.left}px`;
+    container.style.top = `${metrics.top}px`;
     container.style.width = `${width.value}px`;
     container.style.height = `${height.value}px`;
     container.style.zIndex = '9999';
     container.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';  // 添加半透明背景
-    container.style.transform = `scale(${canvasScale})`;
+    container.style.transform = `scale(${metrics.scaleX}, ${metrics.scaleY})`;
     container.style.transformOrigin = 'top left';
     container.style.overflow = 'hidden';
 
@@ -119,6 +158,7 @@ function mount() {
     editBox.appendChild(node);
     container.appendChild(editBox);
     document.body.appendChild(container);
+    containerRef.value = container as HTMLDivElement;
     editBoxRef.value = editBox as HTMLDivElement;
 
     // 获取双层文本结构的引用
@@ -135,6 +175,7 @@ function mount() {
 
     editNodeRef.value.addEventListener('input', handleInput);
     editNodeRef.value.addEventListener('blur', handleBlur);
+    previewSyncUnsubscribe = player.value.on?.('previewchange', syncEditContainer) || null;
     editNodeRef.value.focus();
     const range = document.createRange();
     const selection = window.getSelection();
@@ -148,12 +189,15 @@ function mount() {
 
 function unmount() {
     editTextState.value = null;
+    previewSyncUnsubscribe?.();
+    previewSyncUnsubscribe = null;
     if (editBoxRef.value) {
         editBoxRef.value.removeEventListener('input', handleInput);
         editBoxRef.value.removeEventListener('blur', handleBlur);
         document.body.removeChild(editBoxRef.value.parentElement!);
         editBoxRef.value = null;
     }
+    containerRef.value = null;
     editNodeRef.value = null;
     coverLayerRef.value = null;
     if (currentSource.value?.sprite) {
@@ -176,37 +220,33 @@ function onDoubleClickTextOnCanvas(e: MouseEvent) {
         return;
     }
 
-    const { pageX, pageY } = e;
-    const { viewport, canvasScale = 1 } = player.value;
-    const { left, top } = viewport.getBoundingClientRect();
-    const clickX = pageX - left;
-    const clickY = pageY - top;
+    const point = player.value.screenToCanvasPoint?.(e.clientX, e.clientY);
+    if (!point) {
+        return;
+    }
+
+    const { x: clickX, y: clickY } = point;
 
     const { rect } = sprite;
     const { x, y, w, h, angle } = rect;
 
-    // 碰撞算法，检查clickX, clickY是否处于rect范围内
-    const rectX = x * canvasScale;
-    const rectY = y * canvasScale;
-    const rectW = w * canvasScale;
-    const rectH = h * canvasScale;
     // 要考虑旋转角度的问题，angle的单位是rad
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
     // 计算矩形中心点
-    const centerX = rectX + rectW / 2;
-    const centerY = rectY + rectH / 2;
+    const centerX = x + w / 2;
+    const centerY = y + h / 2;
     // 点击点是否在矩形内
-    const isInRect = (x: number, y: number) => {
+    const isInRect = (inputX: number, inputY: number) => {
         // 将点击点平移，使矩形中心与原点重合
-        const translatedX = x - centerX;
-        const translatedY = y - centerY;
+        const translatedX = inputX - centerX;
+        const translatedY = inputY - centerY;
         // 对平移后的点进行反向旋转（与矩形旋转方向相反）
         const rotatedX = translatedX * cos + translatedY * sin;
         const rotatedY = translatedY * cos - translatedX * sin;
         // 检查旋转后的点是否在原始轴对齐的矩形内
-        const halfW = rectW / 2;
-        const halfH = rectH / 2;
+        const halfW = w / 2;
+        const halfH = h / 2;
         return (Math.abs(rotatedX) <= halfW && Math.abs(rotatedY) <= halfH);
     };
 
@@ -222,13 +262,14 @@ function onDoubleClickTextOnCanvas(e: MouseEvent) {
     };
 }
 
-onMounted(() => {
-    player.value?.viewport?.addEventListener('dblclick', onDoubleClickTextOnCanvas);
-});
+watch(() => player.value?.viewport, (viewport, previousViewport) => {
+    previousViewport?.removeEventListener('dblclick', onDoubleClickTextOnCanvas);
+    viewport?.addEventListener('dblclick', onDoubleClickTextOnCanvas);
+}, { immediate: true });
+
 onBeforeUnmount(() => {
     player.value?.viewport?.removeEventListener('dblclick', onDoubleClickTextOnCanvas);
 });
 </script>
 
 <template></template>
-

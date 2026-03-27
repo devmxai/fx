@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import {
     NButton,
     NIcon,
@@ -42,17 +42,64 @@ interface LogEvent {
 
 const t = useT();
 const { addNewFile } = useWebCutLibrary();
+const fileInputRef = ref<HTMLInputElement | null>(null);
 
 onMounted(() => {
     // 初始化FFmpeg
     setTimeout(loadFFmpeg, 2000);
 });
 
-async function handleFileChange(e: any) {
-    emit('fileImport', e.file.file);
-    // 调用新的handleFile函数处理文件
-    await importOneFile(e.file.file);
-    emit('fileImported', e.file.file);
+function openFilePicker() {
+    if (isTranscoding.value) {
+        return;
+    }
+
+    if (fileInputRef.value) {
+        fileInputRef.value.value = '';
+        fileInputRef.value.click();
+    }
+}
+
+function extractFiles(input: any): File[] {
+    if (input?.target?.files) {
+        return Array.from(input.target.files).filter((file): file is File => file instanceof File);
+    }
+
+    if (input?.file?.file instanceof File) {
+        return [input.file.file];
+    }
+
+    if (Array.isArray(input?.fileList)) {
+        return input.fileList
+            .map((item: any) => item?.file)
+            .filter((file: any): file is File => file instanceof File);
+    }
+
+    return [];
+}
+
+async function handleFiles(files: File[]) {
+    for (const file of files) {
+        emit('fileImport', file);
+        await importOneFile(file);
+        emit('fileImported', file);
+    }
+}
+
+async function handleNativeInputChange(event: Event) {
+    const files = extractFiles(event);
+    if (!files.length) {
+        return;
+    }
+    await handleFiles(files);
+}
+
+async function handleFileChange(event: any) {
+    const files = extractFiles(event);
+    if (!files.length) {
+        return;
+    }
+    await handleFiles(files);
 }
 
 // 处理文件夹导入
@@ -259,35 +306,44 @@ async function importVideo(file: File) {
 
 <template>
     <div class="webcut-meterial-panel-upload">
-        <n-upload
-            v-if="props.card"
-            class="webcut-library-import-upload webcut-library-import-upload--card"
-            multiple
-            :show-file-list="false"
+        <input
+            ref="fileInputRef"
+            class="webcut-library-import-input"
+            type="file"
             :accept="props.accept"
-            @change="handleFileChange"
-            :disabled="isTranscoding"
+            multiple
+            @change="handleNativeInputChange"
+        />
+
+        <div
+            v-if="props.card"
+            class="webcut-material-item webcut-material-item--import-card webcut-library-import-card-trigger"
+            :class="{ 'webcut-library-import-card-trigger--disabled': isTranscoding }"
+            @click="openFilePicker"
         >
-            <div class="webcut-material-item webcut-material-item--import-card">
-                <div class="webcut-material-preview webcut-material-preview--import-card">
-                    <div class="webcut-library-import-card__content" v-if="!isTranscoding">
-                        <n-icon :component="Add" size="34" />
-                    </div>
-                    <div class="webcut-library-import-card__content" v-else>
-                        <n-spin size="small" />
-                    </div>
+            <div class="webcut-material-preview webcut-material-preview--import-card">
+                <div class="webcut-library-import-card__content" v-if="!isTranscoding">
+                    <n-icon :component="Add" size="34" />
+                </div>
+                <div class="webcut-library-import-card__content" v-else>
+                    <n-spin size="small" />
                 </div>
             </div>
-        </n-upload>
+        </div>
 
-        <n-upload v-else-if="props.compact" multiple :show-file-list="false" :accept="props.accept" @change="handleFileChange"
-            :disabled="isTranscoding">
-            <n-button class="webcut-library-import-trigger" quaternary circle :disabled="isTranscoding" :focusable="false">
-                <template #icon>
-                    <n-icon :component="Upload"></n-icon>
-                </template>
-            </n-button>
-        </n-upload>
+        <n-button
+            v-else-if="props.compact"
+            class="webcut-library-import-trigger"
+            quaternary
+            circle
+            :disabled="isTranscoding"
+            :focusable="false"
+            @click="openFilePicker"
+        >
+            <template #icon>
+                <n-icon :component="Upload"></n-icon>
+            </template>
+        </n-button>
 
         <n-upload multiple :show-file-list="false" :accept="props.accept" @change="handleFileChange"
             :disabled="isTranscoding" v-else>
@@ -320,18 +376,18 @@ async function importVideo(file: File) {
     width: 100%;
 }
 
-.webcut-library-import-upload--card {
-    width: 100%;
-    display: block;
+.webcut-library-import-input {
+    display: none;
 }
 
-.webcut-library-import-upload--card :deep(.n-upload) {
+.webcut-library-import-card-trigger {
     width: 100%;
     display: block;
+    cursor: pointer;
 }
 
-.webcut-library-import-upload--card :deep(.n-upload-trigger) {
-    width: 100%;
-    display: block;
+.webcut-library-import-card-trigger--disabled {
+    cursor: not-allowed;
+    opacity: .7;
 }
 </style>

@@ -156,12 +156,19 @@ export async function writeFile(f: File): Promise<string> {
     const fileId = await getFileMd5(f);
     const opfsFilePath = `/webcut/file/${fileId}`;
 
+    try {
+        if (await file(opfsFilePath).exists()) {
+            return fileId;
+        }
 
-    if (await file(opfsFilePath).exists()) {
-        return fileId;
+        await queue.push(() => write(opfsFilePath, f.stream(), { overwrite: true }));
     }
-
-    await queue.push(() => write(opfsFilePath, f.stream(), { overwrite: true }));
+    catch (error) {
+        await filesStorage.put({
+            id: fileId,
+            blob: f,
+        } as any);
+    }
 
     // // 用一个文件来保存扩展信息
     // const ext = f.name.includes('.') ? f.name.split('.').pop() : '';
@@ -177,27 +184,38 @@ export async function writeFile(f: File): Promise<string> {
 
 export async function readFile(fileId: string): Promise<File | null> {
     const opfsFilePath = `/webcut/file/${fileId}`;
-    const fileCtx = file(opfsFilePath);
-    if (await fileCtx.exists()) {
-        const outfile = await fileCtx.getOriginFile();
-        if (!outfile) {
-            return null;
-        }
+    try {
+        const fileCtx = file(opfsFilePath);
+        if (await fileCtx.exists()) {
+            const outfile = await fileCtx.getOriginFile();
+            if (!outfile) {
+                return null;
+            }
 
-        // 使用indexedDB中存的文件元数据
-        const fileData = await getFile(fileId);
-        if (fileData) {
-            const { name, type, time } = fileData;
-            return new File([outfile], name, { type, lastModified: time });
-        }
+            // 使用indexedDB中存的文件元数据
+            const fileData = await getFile(fileId);
+            if (fileData) {
+                const { name, type, time } = fileData;
+                return new File([outfile], name, { type, lastModified: time });
+            }
 
-        return outfile;
+            return outfile;
+        }
     }
+    catch (error) {}
+
+    const fallbackFileData = await filesStorage.get(fileId) as any;
+    if (fallbackFileData?.blob instanceof Blob) {
+        const { blob, name = 'file', type = blob.type || '', time = Date.now() } = fallbackFileData;
+        return new File([blob], name, { type, lastModified: time });
+    }
+
     return null;
 }
 
 export async function addFile(file: File, tags?: string[]) {
     const fileId = await writeFile(file);
+    const existingFileData = await filesStorage.get(fileId) as any;
     const fileData: WebCutMaterial = {
         id: fileId,
         name: file.name,
@@ -206,7 +224,10 @@ export async function addFile(file: File, tags?: string[]) {
         time: Date.now(),
         tags: tags || [],
     };
-    await filesStorage.put(fileData);
+    await filesStorage.put({
+        ...fileData,
+        ...(existingFileData?.blob ? { blob: existingFileData.blob } : {}),
+    } as any);
     return fileId;
 }
 

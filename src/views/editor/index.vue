@@ -14,7 +14,7 @@ import { useWebCutLocale } from '../../i18n/hooks';
 import WebCutToast from '../toast/index.vue';
 import AdvancedExport from '../../modules/advanced-export/index.vue';
 import WebCutTextEditPanel from '../panel/text/contenteditable.vue';
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import HistoryRecover from '../tools/history-recover/index.vue';
 import UndoTool from '../tools/undo/index.vue';
 import RedoTool from '../tools/redo/index.vue';
@@ -45,15 +45,31 @@ if (props.packs) {
 }
 
 const { resize, play, pause } = useWebCutPlayer();
-const { status } = useWebCutContext();
+const { status, player } = useWebCutContext();
 
 const manager = ref();
 function handleResized() {
     manager.value?.resizeHeight();
 }
 
-function handlePreviewUiOnlyAction() {
-    // UI-only placeholder for the first app bar pass.
+const previewPercentLabel = computed(() => {
+    return `${player.value?.previewPercent ?? 100}%`;
+});
+
+function handlePreviewZoomOut() {
+    player.value?.zoomOut?.();
+}
+
+function handlePreviewZoomIn() {
+    player.value?.zoomIn?.();
+}
+
+function handlePreviewFit() {
+    player.value?.fitPreview?.();
+}
+
+function handlePreviewActualSize() {
+    player.value?.actualSizePreview?.();
 }
 
 function isEditableTarget(target: EventTarget | null) {
@@ -121,22 +137,22 @@ onBeforeUnmount(() => {
 
                 <div class="webcut-editor-app-bar__section webcut-editor-app-bar__section--center">
                     <div class="webcut-editor-preview-controls">
-                        <n-button quaternary circle :focusable="false" @click="handlePreviewUiOnlyAction">
+                        <n-button quaternary circle :focusable="false" @click="handlePreviewZoomOut">
                             <template #icon>
                                 <n-icon><Subtract /></n-icon>
                             </template>
                         </n-button>
-                        <button class="webcut-editor-preview-controls__label" type="button" @click="handlePreviewUiOnlyAction">100%</button>
-                        <n-button quaternary circle :focusable="false" @click="handlePreviewUiOnlyAction">
+                        <div class="webcut-editor-preview-controls__label">{{ previewPercentLabel }}</div>
+                        <n-button quaternary circle :focusable="false" @click="handlePreviewZoomIn">
                             <template #icon>
                                 <n-icon><Add /></n-icon>
                             </template>
                         </n-button>
-                        <button class="webcut-editor-preview-controls__pill" type="button" @click="handlePreviewUiOnlyAction">
+                        <button class="webcut-editor-preview-controls__pill" type="button" @click="handlePreviewFit">
                             <n-icon size="14"><FitToScreen /></n-icon>
                             <span>Fit</span>
                         </button>
-                        <button class="webcut-editor-preview-controls__pill" type="button" @click="handlePreviewUiOnlyAction">100%</button>
+                        <button class="webcut-editor-preview-controls__pill" type="button" @click="handlePreviewActualSize">100%</button>
                     </div>
                 </div>
 

@@ -10,9 +10,9 @@ import {
 import { base64ToFile, downloadBlob } from '../libs/file';
 import { assignNotEmpty } from '../libs/object';
 import { isEmpty, createRandomString, clone, assign, debounce, each } from 'ts-fns';
-import { measureAudioDuration, measureVideoDuration, mp4BlobToWavBlob, renderTxt2ImgBitmap } from '../libs';
-import { autoFitRect, measureVideoSize, measureImageSize, calcAspectRatio } from '../libs';
-import { readFile, updateProjectState, writeFile } from '../db';
+import { measureAudioDuration, measureVideoDuration, measureVideoSize, mp4BlobToWavBlob, renderTxt2ImgBitmap } from '../libs';
+import { autoFitRect, calcAspectRatio } from '../libs';
+import { addFile, readFile, updateProjectState, writeFile } from '../db';
 import { PerformanceMark, mark } from '../libs/performance';
 import { aspectRatioMap } from '../constants';
 import { filterManager } from '../modules/filters';
@@ -286,6 +286,28 @@ function secondsToMicroseconds(value: number) {
     return Math.max(0, Math.round(value * 1_000_000));
 }
 
+async function waitForClipReady<T extends MP4Clip | ImgClip | AudioClip>(clip: T, timeoutMs = 6000): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+        await Promise.race([
+            clip.ready,
+            new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new Error('Clip ready timeout')), timeoutMs);
+            }),
+        ]);
+        return clip;
+    }
+    finally {
+        if (timer) {
+            clearTimeout(timer);
+        }
+    }
+}
+
+function isPositiveMetric(value: number | undefined) {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
 export function useWebCutPlayer() {
     const refs = useWebCutContext();
     const {
@@ -321,43 +343,42 @@ export function useWebCutPlayer() {
         height: height.value,
     };
 
-    watch([width, height, viewport, canvas], () => {
-        if (viewport.value && canvas.value) {
-            opts.width = width.value;
-            opts.height = height.value;
-            const canvas = viewport.value.querySelector('canvas');
-            if (canvas) {
-                canvas.width = width.value;
-                canvas.height = height.value;
-            }
-        }
-    });
+    async function normalizeVideoFileForEditor(file: File) {
+        const { loadFFmpeg, transcodeToMP4ByFFmpeg } = await import('../libs/ffmpeg');
+        const ffmpeg = await loadFFmpeg();
+        const buffer = await transcodeToMP4ByFFmpeg(file, ffmpeg);
+        const nextName = file.name.replace(/\.[^/.]+$/, '.mp4');
+        return new File([buffer], nextName, { type: 'video/mp4' });
+    }
 
-    function init() {
-        if (!viewport.value) {
+    let canvasRebuildTask: Promise<void> | null = null;
+    let previewRefreshTask = 0;
+
+    function schedulePreviewRefresh() {
+        if (status.value === 1 || !canvas.value) {
             return;
         }
-
-        canvas.value = markRaw(new AVCanvas(viewport.value, opts));
-
-        sprites.value.forEach((spr) => {
-            canvas.value!.addSprite(spr);
+        if (previewRefreshTask) {
+            window.cancelAnimationFrame(previewRefreshTask);
+        }
+        previewRefreshTask = window.requestAnimationFrame(() => {
+            previewRefreshTask = 0;
+            canvas.value?.previewFrame(Math.max(0, cursorTime.value));
         });
-        // 记录最新的sprite列表，用于在下次销毁时一起销毁
-        // @ts-ignore
-        // canvas.value.latestSprites = [...sprites.value];
+    }
 
-        canvas.value.on('timeupdate', (time) => {
+    function bindCanvasEvents(targetCanvas: AVCanvas) {
+        targetCanvas.on('timeupdate', (time) => {
             if (status.value) {
                 cursorTime.value = time;
             }
             player.value?.emit('timeupdate', time);
         });
-        canvas.value.on('playing', () => {
+        targetCanvas.on('playing', () => {
             status.value = 1;
             player.value?.emit('playing');
         });
-        canvas.value.on('paused', () => {
+        targetCanvas.on('paused', () => {
             // 当自动停止时，把游标放到开始
             if (status.value === 1) {
                 status.value = -1;
@@ -369,10 +390,10 @@ export function useWebCutPlayer() {
         });
 
         let activeSpriteUnsubscribe: Function | null = null;
-        canvas.value.on('activeSpriteChange', (spr) => {
+        targetCanvas.on('activeSpriteChange', (spr) => {
             if (disableSelectSprite.value) {
                 // 禁止选中
-                canvas.value!.activeSprite = null;
+                targetCanvas.activeSprite = null;
                 return;
             }
 
@@ -477,10 +498,64 @@ export function useWebCutPlayer() {
                 selectSegment(segmentId, railId);
             }
         });
+    }
 
-        if (cursorTime.value) {
-            canvas.value.previewFrame(cursorTime.value);
+    async function rebuildCanvas(previewTime = cursorTime.value) {
+        if (!viewport.value) {
+            return;
         }
+        if (canvasRebuildTask) {
+            await canvasRebuildTask;
+            return;
+        }
+
+        canvasRebuildTask = (async () => {
+            opts.width = width.value;
+            opts.height = height.value;
+
+            const previousCanvas = canvas.value;
+            if (previousCanvas) {
+                try {
+                    previousCanvas.pause();
+                }
+                catch (error) {}
+                previousCanvas.destroy();
+            }
+
+            const nextCanvas = markRaw(new AVCanvas(viewport.value!, opts));
+            canvas.value = nextCanvas;
+            bindCanvasEvents(nextCanvas);
+
+            if (sprites.value.length) {
+                await Promise.allSettled(sprites.value.map((spr) => nextCanvas.addSprite(spr)));
+            }
+
+            const safeTime = Math.max(0, Math.min(previewTime, duration.value || previewTime));
+            nextCanvas.previewFrame(safeTime);
+        })().finally(() => {
+            canvasRebuildTask = null;
+        });
+
+        await canvasRebuildTask;
+    }
+
+    watch([width, height], async ([nextWidth, nextHeight], [prevWidth, prevHeight]) => {
+        opts.width = nextWidth;
+        opts.height = nextHeight;
+        if (!canvas.value || !viewport.value) {
+            return;
+        }
+        if (nextWidth === prevWidth && nextHeight === prevHeight) {
+            return;
+        }
+        await rebuildCanvas(cursorTime.value);
+    });
+
+    function init() {
+        if (!viewport.value) {
+            return;
+        }
+        void rebuildCanvas(cursorTime.value);
     }
 
     function play() {
@@ -636,11 +711,8 @@ export function useWebCutPlayer() {
         };
         clip.tickInterceptor = tickInterceptor;
 
-        // 通过前后移动来更新预览帧
-    const currentTime = cursorTime.value;
-    canvas.value?.previewFrame(currentTime + 1);
-    canvas.value?.previewFrame(currentTime - 1);
-    canvas.value?.previewFrame(currentTime);
+        // 仅在非播放状态下刷新当前预览，避免连续跳帧引入音频爆音/噪点
+        schedulePreviewRefresh();
     };
 
     async function createRhubarbLipSyncClip(config: NonNullable<WebCutSourceMeta['rhubarbLipSync']>) {
@@ -716,12 +788,57 @@ export function useWebCutPlayer() {
             let text, fileId, url, file;
             let segMeta = clone(meta);
             let visualSourceSize: { width: number; height: number } | null = null;
-            const hasVideoSegmentInTimeline = rails.value.some(rail => rail.segments.some(segment => sources.value.get(segment.sourceKey)?.type === 'video'));
-            const shouldAdoptCanvasFromFirstVideo = type === 'video' && !hasVideoSegmentInTimeline;
+            let videoDuration = 0;
+            const hasVisualSegmentInTimeline = rails.value.some((rail) => rail.segments.some((segment) => {
+                const sourceItem = sources.value.get(segment.sourceKey);
+                return sourceItem?.type === 'video' || sourceItem?.type === 'image';
+            }));
+            const shouldAdoptCanvasFromFirstVisual = (type === 'video' || type === 'image') && !hasVisualSegmentInTimeline;
             if (type === 'video') {
                 const volume = meta.video?.volume;
                 const offset = meta.video?.offset;
                 const options = typeof volume === 'undefined' ? {} : typeof volume === 'number' && volume > 0 ? { audio: { volume }} : { audio: false };
+                const resolveVideoMetrics = async (nextClip: MP4Clip, input: File | string | undefined) => {
+                    let nextWidth = nextClip.meta.width;
+                    let nextHeight = nextClip.meta.height;
+                    let nextDuration = nextClip.meta.duration;
+
+                    if ((!isPositiveMetric(nextWidth) || !isPositiveMetric(nextHeight)) && input) {
+                        const measuredSize = await measureVideoSize(input);
+                        nextWidth = measuredSize.width;
+                        nextHeight = measuredSize.height;
+                    }
+
+                    if (!isPositiveMetric(nextDuration) && input) {
+                        const measuredDuration = Math.round(await measureVideoDuration(input) * 1e6);
+                        nextDuration = offset ? Math.max(1, measuredDuration - offset) : measuredDuration;
+                    }
+
+                    if (!isPositiveMetric(nextWidth) || !isPositiveMetric(nextHeight) || !isPositiveMetric(nextDuration)) {
+                        throw new Error('Video clip metadata is invalid.');
+                    }
+
+                    return {
+                        width: nextWidth,
+                        height: nextHeight,
+                        duration: nextDuration,
+                    };
+                };
+                const finalizeVideoClip = async (nextClip: MP4Clip, input: File | string | undefined) => {
+                    if (offset) {
+                        const [clip1, clip2] = await nextClip.split(offset);
+                        clip1.destroy();
+                        nextClip = clip2;
+                    }
+                    await waitForClipReady(nextClip, 5000);
+                    const metrics = await resolveVideoMetrics(nextClip, input);
+                    visualSourceSize = {
+                        width: metrics.width,
+                        height: metrics.height,
+                    };
+                    videoDuration = metrics.duration;
+                    return nextClip;
+                };
                 mark(PerformanceMark.GenVideoClipStart);
                 if (source instanceof File) {
                     file = source;
@@ -747,16 +864,26 @@ export function useWebCutPlayer() {
                     clip = new MP4Clip(res.body!, options);
                 }
                 mark(PerformanceMark.GenVideoClipEnd);
-                if (offset) {
-                    const [clip1, clip2] = await clip.split(offset);
-                    clip1.destroy();
-                    clip = clip2;
+
+                try {
+                    clip = await finalizeVideoClip(clip, file || url);
+                }
+                catch (error) {
+                    if (!file) {
+                        throw error;
+                    }
+
+                    try {
+                        clip.destroy();
+                    }
+                    catch (destroyError) {}
+
+                    const normalizedFile = await normalizeVideoFileForEditor(file);
+                    file = normalizedFile;
+                    fileId = await addFile(normalizedFile);
+                    clip = await finalizeVideoClip(new MP4Clip(normalizedFile.stream(), options), normalizedFile);
                 }
 
-                const src = (file || url) as File | string;
-                if (src && (shouldAdoptCanvasFromFirstVideo || meta.autoFitRect)) {
-                    visualSourceSize = await measureVideoSize(src);
-                }
             }
             else if (type === 'audio') {
                 const options = meta.audio || {};
@@ -789,6 +916,7 @@ export function useWebCutPlayer() {
                     clip1.destroy();
                     clip = clip2;
                 }
+                await waitForClipReady(clip);
             }
             else if (type === 'image') {
                 if (meta.rhubarbLipSync) {
@@ -859,9 +987,12 @@ export function useWebCutPlayer() {
                     }
                 }
 
-                const src = (file || url) as File | string;
-                if (src && meta.autoFitRect) {
-                    visualSourceSize = await measureImageSize(src);
+                await waitForClipReady(clip);
+                if (shouldAdoptCanvasFromFirstVisual || meta.autoFitRect) {
+                    visualSourceSize = {
+                        width: clip.meta.width,
+                        height: clip.meta.height,
+                    };
                 }
             }
             else if (type === 'text') {
@@ -877,8 +1008,9 @@ export function useWebCutPlayer() {
 
             const spr = new VisibleSprite(clip!);
 
-            if (shouldAdoptCanvasFromFirstVideo && visualSourceSize) {
+            if (shouldAdoptCanvasFromFirstVisual && visualSourceSize) {
                 await updateCanvasSize(visualSourceSize.width, visualSourceSize.height);
+                await rebuildCanvas(cursorTime.value);
             }
 
             // 处理rect
@@ -886,7 +1018,7 @@ export function useWebCutPlayer() {
                 assignNotEmpty(spr.rect, meta.rect);
             }
             // 自动适配
-            else if (meta.autoFitRect && ['image', 'video'].includes(type)) {
+            else if ((shouldAdoptCanvasFromFirstVisual || meta.autoFitRect) && ['image', 'video'].includes(type)) {
                 const size = visualSourceSize || (() => {
                     throw new Error('Visual source size is required for autoFitRect');
                 })();
@@ -894,7 +1026,8 @@ export function useWebCutPlayer() {
                     width: width.value,
                     height: height.value,
                 };
-                const { w, h, x, y } = autoFitRect(canvasSize, size, meta.autoFitRect);
+                const fitMode = shouldAdoptCanvasFromFirstVisual ? 'cover' : meta.autoFitRect;
+                const { w, h, x, y } = autoFitRect(canvasSize, size, fitMode);
                 spr.rect.w = w;
                 spr.rect.h = h;
                 spr.rect.x = x;
@@ -919,12 +1052,12 @@ export function useWebCutPlayer() {
                 spr.time.duration = meta.time.duration;
             }
             else if (type === 'video') {
-                const src = (file || url) as string;
-                spr.time.duration = await measureVideoDuration(src) * 1e6;
+                const duration = videoDuration || clip.meta.duration || await measureVideoDuration((file || url) as File | string) * 1e6;
+                spr.time.duration = duration;
             }
             else if (type === 'audio') {
-                const src = (file || url) as string;
-                spr.time.duration = await measureAudioDuration(src) * 1e6;
+                const duration = clip.meta.duration || await measureAudioDuration((file || url) as File | string) * 1e6;
+                spr.time.duration = duration;
             }
             else {
                 spr.time.duration = 2 * 1e6;
@@ -955,6 +1088,9 @@ export function useWebCutPlayer() {
             }
             if (meta.visible !== undefined) {
                 spr.visible = meta.visible;
+            }
+            if (shouldAdoptCanvasFromFirstVisual && meta.interactable === undefined && ['image', 'video'].includes(type)) {
+                spr.interactable = 'selectable';
             }
             if (meta.interactable !== undefined) {
                 spr.interactable = meta.interactable;
@@ -1240,6 +1376,10 @@ export function useWebCutPlayer() {
     }
 
     function destroy() {
+        if (previewRefreshTask) {
+            window.cancelAnimationFrame(previewRefreshTask);
+            previewRefreshTask = 0;
+        }
         clear();
         canvas.value?.destroy();
         canvas.value = null;
